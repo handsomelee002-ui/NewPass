@@ -99,9 +99,6 @@ public class LoginActivity extends AppCompatActivity {
             textViewRegisterOrUnlock.setText(getString(R.string.unlock_newpass_button_text));
             welcomeTextView.setText(getString(R.string.welcome_back_newpass_text));
 
-        } else {
-            AlertDialog dialog = getAlertDialog();
-            dialog.show();
         }
 
         buttonPasswordVisibility.setOnClickListener(v -> {
@@ -121,15 +118,7 @@ public class LoginActivity extends AppCompatActivity {
         buttonRegisterOrUnlockListener(buttonRegisterOrUnlock, isPasswordEmpty);
     }
 
-    @NonNull
-    private AlertDialog getAlertDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(R.string.welcome_newpass_text);
-        builder.setMessage(R.string.caution_message);
-        builder.setPositiveButton(R.string.continue_button, (dialog, which) -> dialog.dismiss());
-        AlertDialog dialog = builder.create();
-        return dialog;
-    }
+
 
     public void buttonRegisterOrUnlockListener(View view, Boolean isPasswordEmpty) {
 

@@ -11,7 +11,8 @@ import javax.crypto.spec.PBEKeySpec;
 
 public class HashUtils {
 
-    public static final int ITERATIONS = 10000;
+    public static final int ITERATIONS = 600000;
+    public static final int OLD_ITERATIONS = 10000;
     private static final int SALT_LENGTH = 16;   // in bytes (at least 16 bytes)
     public static final int HASH_LENGTH = 256; // in bits
 
@@ -60,6 +61,14 @@ public class HashUtils {
         SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
         byte[] testHash = keyFactory.generateSecret(spec).getEncoded();
 
-        return java.util.Arrays.equals(hash, testHash);
+        if (java.util.Arrays.equals(hash, testHash)) {
+            return true;
+        }
+
+        // Fallback for older databases
+        PBEKeySpec oldSpec = new PBEKeySpec(password.toCharArray(), salt, OLD_ITERATIONS, hash.length * 8);
+        byte[] oldTestHash = keyFactory.generateSecret(oldSpec).getEncoded();
+
+        return java.util.Arrays.equals(hash, oldTestHash);
     }
 }

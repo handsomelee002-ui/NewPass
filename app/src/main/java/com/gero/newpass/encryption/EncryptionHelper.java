@@ -200,18 +200,33 @@ public class EncryptionHelper {
             byte[] salt = Base64.decode(saltBase64, Base64.NO_WRAP);
             byte[] encryptedBytes = Base64.decode(encryptedString, Base64.NO_WRAP);
 
-            PBEKeySpec spec = new PBEKeySpec(keyEncryption.toCharArray(), salt, HashUtils.ITERATIONS, HashUtils.HASH_LENGTH);
             SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-            byte[] keyBytes = keyFactory.generateSecret(spec).getEncoded();
-            SecretKey secretKey = new SecretKeySpec(keyBytes, "AES");
+            try {
+                PBEKeySpec spec = new PBEKeySpec(keyEncryption.toCharArray(), salt, HashUtils.ITERATIONS, HashUtils.HASH_LENGTH);
+                byte[] keyBytes = keyFactory.generateSecret(spec).getEncoded();
+                SecretKey secretKey = new SecretKeySpec(keyBytes, "AES");
 
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            GCMParameterSpec gcmSpec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, iv);
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                GCMParameterSpec gcmSpec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, iv);
+                cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
 
-            byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
+                byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
 
-            return new String(decryptedBytes, StandardCharsets.UTF_8);
+                return new String(decryptedBytes, StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                // Fallback attempt with older iteration count
+                PBEKeySpec spec = new PBEKeySpec(keyEncryption.toCharArray(), salt, HashUtils.OLD_ITERATIONS, HashUtils.HASH_LENGTH);
+                byte[] keyBytes = keyFactory.generateSecret(spec).getEncoded();
+                SecretKey secretKey = new SecretKeySpec(keyBytes, "AES");
+
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                GCMParameterSpec gcmSpec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, iv);
+                cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
+
+                byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
+
+                return new String(decryptedBytes, StandardCharsets.UTF_8);
+            }
         } catch (Exception e) {
             Toast.makeText(context, R.string.invalid_key, Toast.LENGTH_LONG).show();
             Log.e("8953467", "error during decryption " , e);

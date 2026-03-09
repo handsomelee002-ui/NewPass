@@ -1,7 +1,6 @@
 package com.gero.newpass.viewmodel;
 
 import android.util.Log;
-import android.widget.ImageView;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;

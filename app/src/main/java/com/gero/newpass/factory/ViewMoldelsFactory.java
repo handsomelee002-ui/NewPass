@@ -16,6 +16,7 @@ public class ViewMoldelsFactory implements ViewModelProvider.Factory {
         this.resourceRepository = resourceRepository;
     }
 
+    @SuppressWarnings("unchecked")
     @NonNull
     @Override
     public <T extends ViewModel> T create(@NonNull Class<T> modelClass) {

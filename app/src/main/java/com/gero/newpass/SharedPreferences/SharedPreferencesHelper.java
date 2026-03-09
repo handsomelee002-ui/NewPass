@@ -10,65 +10,19 @@ import androidx.appcompat.app.AppCompatDelegate;
 
 import com.gero.newpass.R;
 
-import java.util.Objects;
+
 
 public class SharedPreferencesHelper {
 
-    private static final String SCREEN_LOCK_FLAG = "screenlock";
     public static String DARK_MODE_FLAG = "isDarkModeOn";
     public static String SHARED_PREF_FLAG = "SharedPref";
-    public static String LANG_PREF_FLAG = "language";
 
     //Obtain shared preferences
     public static synchronized SharedPreferences getSharedPreferences(Context context) {
         return context.getSharedPreferences(SHARED_PREF_FLAG, Context.MODE_PRIVATE);
     }
 
-    public static String getCurrentLanguage(Context context) {
-        SharedPreferences sharedPreferences = getSharedPreferences(context);
 
-        String currentLanguage = sharedPreferences.getString(LANG_PREF_FLAG, "");
-
-        if (currentLanguage.isEmpty()) {
-            currentLanguage = "English";
-
-        } else if (Objects.equals(currentLanguage, "zh")) {
-            currentLanguage = "中国人";
-
-        } else if (Objects.equals(currentLanguage, "ru")) {
-            currentLanguage = "Русский";
-            
-        } else if (Objects.equals(currentLanguage, "pt-rBR")) {
-            currentLanguage = "Portuguese";
-        } 
-        
-        return currentLanguage;
-    }
-
-    public static void setLanguage(Context context, String selectedLanguage) {
-
-        if (Objects.equals(selectedLanguage, "中国人")) {
-            selectedLanguage = "zh";
-        }
-
-        if (Objects.equals(selectedLanguage, "Русский")) {
-            selectedLanguage = "ru";
-        } 
-        
-        if (Objects.equals(selectedLanguage, "Portuguse")) {
-            selectedLanguage = "pt-rBR";
-        }
-        
-        if (Objects.equals(selectedLanguage, "Portuguse")) {
-            selectedLanguage = "pt-rBR";
-        }
-
-        SharedPreferences sharedPreferences = getSharedPreferences(context);
-        final SharedPreferences.Editor editor = sharedPreferences.edit();
-
-        editor.putString(SharedPreferencesHelper.LANG_PREF_FLAG, selectedLanguage.toLowerCase().substring(0, 2));
-        editor.apply();
-    }
 
     //Return is dark mode is set or not from shared preferences, default value is true
     public static Boolean isDarkModeSet(Context context) {
@@ -124,6 +78,7 @@ public class SharedPreferencesHelper {
     }
 
     //Apply dark/ light mode on the navigation bar
+    @SuppressWarnings("deprecation")
     public static void updateNavigationBarColor(Boolean isDarkMode, Activity activity) {
         Window window = activity.getWindow();
         if (isDarkMode) {
@@ -137,18 +92,5 @@ public class SharedPreferencesHelper {
         }
     }
 
-    //Return is dark mode is set or not from shared preferences, default value is true
-    public static Boolean isScreenLockEnabled(Context context) {
-        SharedPreferences sharedPreferences = getSharedPreferences(context);
-        return sharedPreferences.getBoolean(SCREEN_LOCK_FLAG, true);
-    }
 
-    public static void setUseScreenLockToUnlock(Context context) {
-        Boolean currentState = SharedPreferencesHelper.isScreenLockEnabled(context);
-        SharedPreferences sharedPreferences = getSharedPreferences(context);
-        final SharedPreferences.Editor editor = sharedPreferences.edit();
-
-        editor.putBoolean(SCREEN_LOCK_FLAG, !currentState);
-        editor.apply();
-    }
 }

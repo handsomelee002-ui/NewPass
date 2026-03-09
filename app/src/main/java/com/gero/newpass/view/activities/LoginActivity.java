@@ -1,12 +1,7 @@
 package com.gero.newpass.view.activities;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.content.res.Configuration;
-import android.content.res.Resources;
 import android.os.Bundle;
 import android.text.method.HideReturnsTransformationMethod;
 import android.text.method.PasswordTransformationMethod;
@@ -18,15 +13,11 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.biometric.BiometricManager;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.security.crypto.EncryptedSharedPreferences;
 
-import com.gero.newpass.ContextWrapper.NewPassContextWrapper;
 import com.gero.newpass.R;
 import com.gero.newpass.SharedPreferences.SharedPreferencesHelper;
 import com.gero.newpass.databinding.ActivityLoginBinding;
@@ -41,7 +32,6 @@ import com.gero.newpass.viewmodel.LoginViewModel;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.Locale;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -132,37 +122,7 @@ public class LoginActivity extends AppCompatActivity {
 
     private void loginUser(View view) {
         Log.d("LOGIN_VM", "Already launched before");
-
-        if (SharedPreferencesHelper.isScreenLockEnabled(this)) {
-            BiometricManager biometricManager = BiometricManager.from(this);
-
-            int canAuthenticate = biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK | BiometricManager.Authenticators.DEVICE_CREDENTIAL);
-
-            if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
-                Log.d("LOGIN_VM", "App can authenticate using biometrics or device credentials.");
-
-                hideUI(true);
-
-                loginViewModel.loginUserWithBiometricAuth(this);
-
-                loginViewModel.getLoginSuccessLiveData().observe(this, state -> {
-                    Log.w("23057", String.valueOf(state));
-
-                    if (!state) {
-
-                        hideUI(false);
-                        loginWithPassword(view);
-                    }
-                });
-
-            } else {
-                Log.d("LOGIN_VM", "No biometric or credential authentication features available on this device.");
-
-                loginWithPassword(view);
-            }
-        } else {
-            loginWithPassword(view);
-        }
+        loginWithPassword(view);
     }
 
     private void registerUser() {
@@ -231,15 +191,5 @@ public class LoginActivity extends AppCompatActivity {
         buttonPasswordVisibility = binding.passwordVisibilityButton;
     }
 
-    @Override
-    protected void attachBaseContext(Context context) {
-        SharedPreferences sharedPreferences = context.getSharedPreferences(SharedPreferencesHelper.SHARED_PREF_FLAG, MODE_PRIVATE);
-        String language = sharedPreferences.getString(SharedPreferencesHelper.LANG_PREF_FLAG, "en");
-        super.attachBaseContext(NewPassContextWrapper.wrap(context, language));
-        Locale locale = new Locale(language);
-        Resources resources = getBaseContext().getResources();
-        Configuration conf = resources.getConfiguration();
-        conf.setLocale(locale);
-        resources.updateConfiguration(conf, resources.getDisplayMetrics());
-    }
+
 }

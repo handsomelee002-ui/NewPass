@@ -45,7 +45,7 @@ public class MainViewFragment extends Fragment {
     private ImageView empty_imageview;
     private RecyclerView recyclerView;
     private ImageButton buttonSettings, buttonSearch, buttonCancel;
-    private TextView buttonGenerate, buttonAdd, buttonAddFolder;
+    private TextView buttonAdd, buttonAddFolder;
     private MainViewModel mainViewModel;
     private Integer currentFolderId = null; // null represents root
     private String currentFolderName = null;
@@ -132,20 +132,6 @@ public class MainViewFragment extends Fragment {
                 return false;
             });
 
-
-            buttonGenerate.setOnTouchListener((v, event) -> {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Weak);
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        v.performClick();
-                        VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Strong);
-                        ((MainViewActivity) activity).openFragment(new GeneratePasswordFragment());
-                        return true;
-                }
-                return false;
-            });
 
             buttonSearch.setOnClickListener(v -> showInputDialog());
 
@@ -507,7 +493,6 @@ public class MainViewFragment extends Fragment {
 
     private void initViews() {
         recyclerView = binding.recyclerView;
-        buttonGenerate = binding.buttonGenerate;
         buttonAdd = binding.buttonAdd;
         buttonAddFolder = binding.buttonAddFolder;
         buttonSettings = binding.buttonSettings;

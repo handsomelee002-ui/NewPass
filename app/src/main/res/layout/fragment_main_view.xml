@@ -46,7 +46,7 @@
         android:orientation="horizontal"
         android:paddingHorizontal="20dp"
         android:paddingTop="24dp"
-        android:weightSum="3"
+        android:weightSum="2"
         app:layout_constraintTop_toBottomOf="@+id/topBar">
 
         <!-- Add Password Button -->
@@ -89,30 +89,6 @@
                     android:gravity="center"
                     android:fontFamily="@font/jetbrainsmonobold"
                     android:text="[New Folder]"
-                    android:textColor="@color/text_primary"
-                    android:textSize="12sp"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:paddingHorizontal="4dp"
-                    android:elevation="2dp" />
-        </FrameLayout>
-
-        <!-- Generate Button -->
-        <FrameLayout
-            android:layout_width="0dp"
-            android:layout_height="56dp"
-            android:layout_weight="1"
-            android:layout_marginHorizontal="4dp">
-            
-                <TextView
-                    android:id="@+id/button_Generate"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/bg_rounded_input"
-                    android:backgroundTint="@color/background_secondary"
-                    android:gravity="center"
-                    android:fontFamily="@font/jetbrainsmonobold"
-                    android:text="@string/main_btn_generate"
                     android:textColor="@color/text_primary"
                     android:textSize="12sp"
                     android:maxLines="1"

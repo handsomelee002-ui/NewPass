@@ -41,10 +41,11 @@ public class SettingsFragment extends Fragment {
     private Intent intent;
     private EncryptedSharedPreferences encryptedSharedPreferences;
     static final int DARK_THEME = 0;
-    static final int CHANGE_PASSWORD = 1;
-    static final int EXPORT = 2;
-    static final int IMPORT = 3;
-    static final int APP_VERSION = 4;
+    static final int GENERATE_PASSWORD = 1;
+    static final int CHANGE_PASSWORD = 2;
+    static final int EXPORT = 3;
+    static final int IMPORT = 4;
+    static final int APP_VERSION = 5;
 
 
     @Override
@@ -78,6 +79,12 @@ public class SettingsFragment extends Fragment {
         listView.setOnItemClickListener((parent, view1, position, id) -> {
 
             switch (position) {
+                case GENERATE_PASSWORD:
+                    VibrationHelper.vibrate(binding.getRoot(), VibrationHelper.VibrationType.Weak);
+                    if (getActivity() instanceof MainViewActivity) {
+                        ((MainViewActivity) getActivity()).openFragment(new GeneratePasswordFragment());
+                    }
+                    break;
 
                 case CHANGE_PASSWORD:
                     VibrationHelper.vibrate(binding.getRoot(), VibrationHelper.VibrationType.Weak);
@@ -108,6 +115,7 @@ public class SettingsFragment extends Fragment {
 
     private void createSettingsList(ArrayList<SettingData> arrayList) {
         arrayList.add(new SettingData(DARK_THEME, R.drawable.settings_icon_dark_theme, getString(R.string.settings_dark_theme), false, true, 1));
+        arrayList.add(new SettingData(GENERATE_PASSWORD, R.drawable.btn_regenerate, "Random Password Generator"));
         arrayList.add(new SettingData(CHANGE_PASSWORD, R.drawable.settings_icon_lock, getString(R.string.settings_change_password)));
         arrayList.add(new SettingData(EXPORT, R.drawable.icon_export, getString(R.string.settings_export_db)));
         arrayList.add(new SettingData(IMPORT, R.drawable.icon_import, getString(R.string.settings_import_db)));

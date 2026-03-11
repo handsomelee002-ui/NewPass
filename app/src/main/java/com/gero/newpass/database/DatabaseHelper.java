@@ -434,26 +434,56 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE);
 
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_NAME, null);
+        JSONObject finalExportObject = new JSONObject();
+        JSONArray foldersArray = new JSONArray();
+        JSONArray passwordsArray = new JSONArray();
 
-        JSONArray jsonArray = new JSONArray();
-
-        if (cursor != null && cursor.moveToFirst()) {
+        // 1. Export Folders
+        Cursor folderCursor = db.rawQuery("SELECT * FROM " + TABLE_FOLDERS, null);
+        if (folderCursor != null && folderCursor.moveToFirst()) {
             do {
                 JSONObject jsonObject = new JSONObject();
                 try {
-                    jsonObject.put(COLUMN_ID, cursor.getInt(cursor.getColumnIndex(COLUMN_ID)));
-                    jsonObject.put(COLUMN_NAME, cursor.getString(cursor.getColumnIndex(COLUMN_NAME)));
-                    jsonObject.put(COLUMN_EMAIL, cursor.getString(cursor.getColumnIndex(COLUMN_EMAIL)));
-                    jsonObject.put(COLUMN_PASSWORD, EncryptionHelper.decrypt(cursor.getString(cursor.getColumnIndex(COLUMN_PASSWORD))));
-
-                    jsonArray.put(jsonObject);
+                    jsonObject.put(COLUMN_ID, folderCursor.getInt(folderCursor.getColumnIndex(COLUMN_ID)));
+                    jsonObject.put(COLUMN_FOLDER_NAME, folderCursor.getString(folderCursor.getColumnIndex(COLUMN_FOLDER_NAME)));
+                    jsonObject.put(COLUMN_SORT_ORDER, folderCursor.getInt(folderCursor.getColumnIndex(COLUMN_SORT_ORDER)));
+                    foldersArray.put(jsonObject);
                 } catch (JSONException e) {
-                    Log.e("8953467", "Error converting database row to JSON", e);
+                    Log.e("8953467", "Error converting folder row to JSON", e);
                 }
-            } while (cursor.moveToNext());
+            } while (folderCursor.moveToNext());
+            folderCursor.close();
+        }
 
-            cursor.close();
+        // 2. Export Passwords
+        Cursor passwordCursor = db.rawQuery("SELECT * FROM " + TABLE_NAME, null);
+        if (passwordCursor != null && passwordCursor.moveToFirst()) {
+            do {
+                JSONObject jsonObject = new JSONObject();
+                try {
+                    jsonObject.put(COLUMN_ID, passwordCursor.getInt(passwordCursor.getColumnIndex(COLUMN_ID)));
+                    jsonObject.put(COLUMN_NAME, passwordCursor.getString(passwordCursor.getColumnIndex(COLUMN_NAME)));
+                    jsonObject.put(COLUMN_EMAIL, passwordCursor.getString(passwordCursor.getColumnIndex(COLUMN_EMAIL)));
+                    jsonObject.put(COLUMN_PASSWORD, EncryptionHelper.decrypt(passwordCursor.getString(passwordCursor.getColumnIndex(COLUMN_PASSWORD))));
+                    
+                    if (!passwordCursor.isNull(passwordCursor.getColumnIndex(COLUMN_FOLDER_ID))) {
+                        jsonObject.put(COLUMN_FOLDER_ID, passwordCursor.getInt(passwordCursor.getColumnIndex(COLUMN_FOLDER_ID)));
+                    }
+                    jsonObject.put(COLUMN_SORT_ORDER, passwordCursor.getInt(passwordCursor.getColumnIndex(COLUMN_SORT_ORDER)));
+
+                    passwordsArray.put(jsonObject);
+                } catch (JSONException e) {
+                    Log.e("8953467", "Error converting password row to JSON", e);
+                }
+            } while (passwordCursor.moveToNext());
+            passwordCursor.close();
+        }
+
+        try {
+            finalExportObject.put("folders", foldersArray);
+            finalExportObject.put("passwords", passwordsArray);
+        } catch (JSONException e) {
+            Log.e("8953467", "Error assembling final export JSON object", e);
         }
 
         try {
@@ -461,13 +491,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             if (!exportDir.exists()) {
                 exportDir.mkdirs();
             }
-            Calendar calendar = Calendar.getInstance();
+            
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", java.util.Locale.US);
+            String timestamp = sdf.format(new java.util.Date());
 
-            File file = new File(exportDir, "Encrypted_NewPass_DB_" +
-                    calendar.get(Calendar.YEAR) +
-                    "_" + (calendar.get(Calendar.MONTH) + 1) +
-                    "_" + calendar.get(Calendar.DAY_OF_MONTH) + ".json"
-            );
+            File file = new File(exportDir, "Encrypted_NewPass_DB_" + timestamp + ".json");
 
             if (file.exists()) {
                 Log.d("8953467", "file already exists");
@@ -475,7 +503,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 Log.d("8953467", "file not exists");
             }
 
-            String jsonString = jsonArray.toString();
+            String jsonString = finalExportObject.toString();
             String jsonEncryptedString = EncryptionHelper.encryptDatabase(jsonString, passwordGotFromUser);
 
             FileWriter fileWriter = new FileWriter(file);
@@ -509,20 +537,79 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
 
         try {
-            JSONArray jsonArray = new JSONArray(jsonDecryptedString);
+            JSONObject importData = null;
+            JSONArray oldFormatArray = null;
 
-            for (int i = 0; i < jsonArray.length(); i++) {
-                JSONObject jsonObject = jsonArray.getJSONObject(i);
+            String trimmedStr = jsonDecryptedString.trim();
+            if (trimmedStr.startsWith("{")) {
+                importData = new JSONObject(jsonDecryptedString);
+            } else if (trimmedStr.startsWith("[")) {
+                oldFormatArray = new JSONArray(jsonDecryptedString);
+            } else {
+                throw new JSONException("Unsupported JSON format");
+            }
 
-                String name = jsonObject.getString(COLUMN_NAME);
-                String email = jsonObject.getString(COLUMN_EMAIL);
-                String password = jsonObject.getString(COLUMN_PASSWORD);
+            if (oldFormatArray != null) {
+                // LEGACY FORMAT: Flat Array of Passwords
+                for (int i = 0; i < oldFormatArray.length(); i++) {
+                    JSONObject jsonObject = oldFormatArray.getJSONObject(i);
+                    String name = jsonObject.getString(COLUMN_NAME);
+                    String email = jsonObject.getString(COLUMN_EMAIL);
+                    String password = jsonObject.getString(COLUMN_PASSWORD);
 
-                if (!checkIfAccountAlreadyExist(context, name, email)) {
-                    addEntry(context, name, email, password, null);
-                } else {
-                    Log.w("8953467", "entry: " + name + " " + email + " already exists");
+                    if (!checkIfAccountAlreadyExist(context, name, email)) {
+                        addEntry(context, name, email, password, null);
+                    } else {
+                        Log.w("8953467", "entry: " + name + " " + email + " already exists");
+                    }
                 }
+            } else if (importData != null) {
+                // NEW FORMAT: Structured Folders and Passwords
+                SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE);
+
+                JSONArray foldersArray = importData.optJSONArray("folders");
+                java.util.HashMap<Integer, Integer> folderIdMap = new java.util.HashMap<>();
+
+                if (foldersArray != null) {
+                    for (int i = 0; i < foldersArray.length(); i++) {
+                        JSONObject fObj = foldersArray.getJSONObject(i);
+                        int oldId = fObj.getInt(COLUMN_ID);
+                        String fName = fObj.getString(COLUMN_FOLDER_NAME);
+                        int sortO = fObj.optInt(COLUMN_SORT_ORDER, 0);
+
+                        ContentValues cv = new ContentValues();
+                        cv.put(COLUMN_FOLDER_NAME, fName);
+                        cv.put(COLUMN_SORT_ORDER, sortO);
+
+                        long newFolderId = db.insert(TABLE_FOLDERS, null, cv);
+                        if (newFolderId != -1) {
+                            folderIdMap.put(oldId, (int) newFolderId);
+                        }
+                    }
+                }
+
+                JSONArray passwordsArray = importData.optJSONArray("passwords");
+                if (passwordsArray != null) {
+                    for (int i = 0; i < passwordsArray.length(); i++) {
+                        JSONObject pObj = passwordsArray.getJSONObject(i);
+                        String name = pObj.getString(COLUMN_NAME);
+                        String email = pObj.getString(COLUMN_EMAIL);
+                        String password = pObj.getString(COLUMN_PASSWORD);
+
+                        Integer newFolderId = null;
+                        if (pObj.has(COLUMN_FOLDER_ID)) {
+                            int oldFolderId = pObj.getInt(COLUMN_FOLDER_ID);
+                            newFolderId = folderIdMap.get(oldFolderId);
+                        }
+
+                        if (!checkIfAccountAlreadyExist(context, name, email)) {
+                            addEntry(context, name, email, password, newFolderId);
+                        } else {
+                            Log.w("8953467", "entry: " + name + " " + email + " already exists");
+                        }
+                    }
+                }
+                db.close();
             }
 
             Log.d("8953467", "Data imported from JSON to database successfully");

@@ -447,7 +447,7 @@ public class MainViewFragment extends Fragment {
     }
 
     private void showPasswordContextMenu(UserData password) {
-        String[] options = {"Copy Password", "Move to Folder", "Delete"};
+        String[] options = {"Copy to Clipboard", "Move to Folder", "Delete"};
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
         builder.setTitle(password.getName())
                .setItems(options, (dialog, which) -> {

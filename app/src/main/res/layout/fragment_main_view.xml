@@ -88,7 +88,7 @@
                     android:backgroundTint="@color/background_secondary"
                     android:gravity="center"
                     android:fontFamily="@font/jetbrainsmonobold"
-                    android:text="New Folder"
+                    android:text="[New Folder]"
                     android:textColor="@color/text_primary"
                     android:textSize="12sp"
                     android:maxLines="1"

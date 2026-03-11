@@ -60,6 +60,8 @@ public class MainViewModel extends ViewModel {
             }
             cursor.close();
         }
+        
+        java.util.Collections.sort(localList, java.util.Comparator.comparingInt(ListItem::getSortOrder));
         dataList.postValue(localList);
     }
 
@@ -83,6 +85,8 @@ public class MainViewModel extends ViewModel {
             }
             cursor.close();
         }
+        
+        java.util.Collections.sort(localList, java.util.Comparator.comparingInt(ListItem::getSortOrder));
         searchedDataList.postValue(localList);
     }
 

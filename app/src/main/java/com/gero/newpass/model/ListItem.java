@@ -5,4 +5,5 @@ public interface ListItem {
     int TYPE_PASSWORD = 1;
 
     int getType();
+    int getSortOrder();
 }

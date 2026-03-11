@@ -265,7 +265,7 @@ public class MainViewFragment extends Fragment {
         builder.setTitle(R.string.search_password)
                 .setPositiveButton(R.string.ok, (dialog, which) -> {
 
-                    String searchTerm = input.getText().toString().toLowerCase().trim();
+                    String searchTerm = input.getText().toString().toLowerCase(java.util.Locale.ROOT).trim();
 
                     if (searchTerm.isEmpty()) {
                         buttonCancel.setVisibility(View.GONE);

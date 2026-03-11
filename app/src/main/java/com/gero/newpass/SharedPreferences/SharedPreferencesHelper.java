@@ -88,7 +88,9 @@ public class SharedPreferencesHelper {
             // Set light color for navigation bar
             window.setNavigationBarColor(activity.getResources().getColor(R.color.navigationbar_light_mode));
             // Additionally, if your navigation bar icons are not visible against the light background, you can make them dark:
-            window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+            }
         }
     }
 

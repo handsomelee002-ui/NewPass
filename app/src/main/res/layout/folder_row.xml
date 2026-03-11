@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/mainLayoutFolder"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -21,7 +22,7 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:src="@drawable/icon_folder_modern"
-        android:tint="@color/accent"
+        app:tint="@color/accent"
         android:padding="8dp"
         android:contentDescription="Folder Icon"
         android:layout_gravity="center_vertical" />
@@ -38,7 +39,7 @@
             android:id="@+id/folder_name_txt"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Folder Name"
+            tools:text="Folder Name"
             android:textColor="@color/text_primary"
             android:textSize="18sp"
             android:textStyle="bold" />

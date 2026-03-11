@@ -60,7 +60,7 @@
         android:fontFamily="@font/jetbrainsmonoextrabold"
         android:text="@string/settings_settings"
         android:textColor="@color/text_primary"
-        android:textSize="28dp"
+        android:textSize="28sp"
         app:layout_constraintStart_toStartOf="@+id/guideline_col_1"
         app:layout_constraintTop_toTopOf="@+id/guideline_row_2"
         tools:ignore="MissingConstraints" />

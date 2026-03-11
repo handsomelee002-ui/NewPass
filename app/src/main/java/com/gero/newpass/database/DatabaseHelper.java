@@ -159,7 +159,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         String query = "SELECT * " +
                 "FROM " + TABLE_NAME +
-                " WHERE " + COLUMN_NAME + " LIKE '%" + itemToSearch.toLowerCase() + "%'";
+                " WHERE " + COLUMN_NAME + " LIKE '%" + itemToSearch.toLowerCase(java.util.Locale.ROOT) + "%'";
 
         return db.rawQuery(query, null);
     }

@@ -99,8 +99,11 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
             });
             
             folderHolder.dragHandle.setOnTouchListener((v, event) -> {
-                if (event.getAction() == MotionEvent.ACTION_DOWN && interactionListener != null) {
-                    interactionListener.onStartDrag(folderHolder);
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    v.performClick();
+                    if (interactionListener != null) {
+                        interactionListener.onStartDrag(folderHolder);
+                    }
                 }
                 return false;
             });
@@ -156,8 +159,11 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
             });
             
             passwordHolder.dragHandle.setOnTouchListener((v, event) -> {
-                if (event.getAction() == MotionEvent.ACTION_DOWN && interactionListener != null) {
-                    interactionListener.onStartDrag(passwordHolder);
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    v.performClick();
+                    if (interactionListener != null) {
+                        interactionListener.onStartDrag(passwordHolder);
+                    }
                 }
                 return false;
             });

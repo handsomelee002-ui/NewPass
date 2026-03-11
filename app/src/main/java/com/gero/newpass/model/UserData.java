@@ -1,16 +1,20 @@
 package com.gero.newpass.model;
 
-public class UserData {
+public class UserData implements ListItem {
     private String id;
     private String name;
     private String email;
     private String password;
+    private Integer folderId;
+    private int sortOrder;
 
-    public UserData(String id, String name, String email, String password) {
+    public UserData(String id, String name, String email, String password, Integer folderId, int sortOrder) {
         this.id = id;
         this.name = name;
         this.email = email;
         this.password = password;
+        this.folderId = folderId;
+        this.sortOrder = sortOrder;
     }
 
     public String getId() {
@@ -43,5 +47,26 @@ public class UserData {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public Integer getFolderId() {
+        return folderId;
+    }
+    
+    public void setFolderId(Integer folderId) {
+        this.folderId = folderId;
+    }
+
+    public int getSortOrder() {
+        return sortOrder;
+    }
+
+    public void setSortOrder(int sortOrder) {
+        this.sortOrder = sortOrder;
+    }
+
+    @Override
+    public int getType() {
+        return TYPE_PASSWORD;
     }
 }

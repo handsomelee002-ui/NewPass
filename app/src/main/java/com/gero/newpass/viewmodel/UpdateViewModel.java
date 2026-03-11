@@ -31,12 +31,12 @@ public class UpdateViewModel extends ViewModel {
         return successUpdateLiveData;
     }
 
-    public void updateEntry(String entry, String name, String email, String password) {
+    public void updateEntry(String entry, String name, String email, String password, Integer folderId) {
 
         String encryptedPassword = EncryptionHelper.encrypt(password);
 
         if (!name.isEmpty() && !email.isEmpty() && password.length() >= 4) {
-            databaseHelper.updateData(entry, name, email, encryptedPassword);
+            databaseHelper.updateData(entry, name, email, encryptedPassword, folderId);
             messageLiveData.setValue(resourceRepository.getString(R.string.dbhelper_updated_successfully));
             successUpdateLiveData.setValue(true);
 

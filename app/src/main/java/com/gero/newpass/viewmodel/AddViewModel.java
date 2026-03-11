@@ -28,7 +28,7 @@ public class AddViewModel extends ViewModel {
         return successLiveData;
     }
 
-    public void addEntry(Context context, String name, String email, String password) {
+    public void addEntry(Context context, String name, String email, String password, Integer folderId) {
 
         if (!name.isEmpty() && !email.isEmpty() && password.length() >= 4) {
 
@@ -37,7 +37,7 @@ public class AddViewModel extends ViewModel {
                     successLiveData.setValue(false);
 
                 } else  {
-                    DatabaseHelper.addEntry(context, name, email, password);
+                    DatabaseHelper.addEntry(context, name, email, password, folderId);
                     messageLiveData.setValue(resourceRepository.getString(R.string.account_added_successfully));
                     successLiveData.setValue(true);
                 }

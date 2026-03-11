@@ -36,12 +36,18 @@ import java.util.Calendar;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "Password.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2; // Incremented for folders feature
     private static final String TABLE_NAME = "my_password_record";
     private static final String COLUMN_ID = "id";
     private static final String COLUMN_NAME = "record_name";
     private static final String COLUMN_EMAIL = "record_email";
     private static final String COLUMN_PASSWORD = "record_password";
+    private static final String COLUMN_FOLDER_ID = "folder_id"; // Nullable foreign key to folders table
+    private static final String COLUMN_SORT_ORDER = "sort_order"; // For manual re-ordering
+
+    private static final String TABLE_FOLDERS = "folders";
+    private static final String COLUMN_FOLDER_NAME = "folder_name";
+    
     private static final String KEY_ENCRYPTION = StringHelper.getSharedString();
 
     public DatabaseHelper(@Nullable Context context) {
@@ -57,15 +63,33 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         " (" + COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                         COLUMN_NAME + " TEXT, " +
                         COLUMN_EMAIL + " TEXT, " +
-                        COLUMN_PASSWORD + " TEXT);";
+                        COLUMN_PASSWORD + " TEXT, " +
+                        COLUMN_FOLDER_ID + " INTEGER, " +
+                        COLUMN_SORT_ORDER + " INTEGER);";
+
+        String queryFolders =
+                "CREATE TABLE " + TABLE_FOLDERS +
+                        " (" + COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                        COLUMN_FOLDER_NAME + " TEXT, " +
+                        COLUMN_SORT_ORDER + " INTEGER);";
 
         db.execSQL(query);
+        db.execSQL(queryFolders);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_NAME);
-        onCreate(db);
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE " + TABLE_NAME + " ADD COLUMN " + COLUMN_FOLDER_ID + " INTEGER;");
+            db.execSQL("ALTER TABLE " + TABLE_NAME + " ADD COLUMN " + COLUMN_SORT_ORDER + " INTEGER;");
+            
+            String queryFolders =
+                "CREATE TABLE " + TABLE_FOLDERS +
+                        " (" + COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                        COLUMN_FOLDER_NAME + " TEXT, " +
+                        COLUMN_SORT_ORDER + " INTEGER);";
+            db.execSQL(queryFolders);
+        }
     }
 
 
@@ -78,7 +102,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @param email    The email of the entry.
      * @param password The password of the entry (it will be encrypted before being inserted into the database)
      */
-    public static void addEntry(Context context, String name, String email, String password) {
+    public static void addEntry(Context context, String name, String email, String password, Integer folderId) {
         //SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
         SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE);
 
@@ -89,6 +113,19 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         cv.put(COLUMN_NAME, name);
         cv.put(COLUMN_EMAIL, email);
         cv.put(COLUMN_PASSWORD, encryptedPassword);
+        
+        if (folderId != null) {
+            cv.put(COLUMN_FOLDER_ID, folderId);
+        }
+        
+        // Get max sort order
+        Cursor c = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + (folderId == null ? COLUMN_FOLDER_ID + " IS NULL" : COLUMN_FOLDER_ID + " = " + folderId), null);
+        int sortOrder = 0;
+        if (c != null && c.moveToFirst() && !c.isNull(0)) {
+            sortOrder = c.getInt(0) + 1;
+        }
+        if (c != null) c.close();
+        cv.put(COLUMN_SORT_ORDER, sortOrder);
 
         db.insert(TABLE_NAME, null, cv);
     }
@@ -136,13 +173,18 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @param email    The new value for the email column.
      * @param password The new value for the password column.
      */
-    public void updateData(String row_id, String name, String email, String password) {
+    public void updateData(String row_id, String name, String email, String password, Integer folderId) {
         SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
         ContentValues cv = new ContentValues();
 
         cv.put(COLUMN_NAME, name);
         cv.put(COLUMN_EMAIL, email);
         cv.put(COLUMN_PASSWORD, password);
+        if (folderId != null) {
+            cv.put(COLUMN_FOLDER_ID, folderId);
+        } else {
+            cv.putNull(COLUMN_FOLDER_ID);
+        }
 
         db.update(TABLE_NAME, cv, "id=?", new String[]{row_id});
     }
@@ -158,6 +200,185 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public void deleteOneRow(String rowId) {
         SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
         db.delete(TABLE_NAME, "id=?", new String[]{rowId});
+    }
+
+    /**
+     * Adds a new folder.
+     */
+    public void addFolder(String folderName) {
+        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        ContentValues cv = new ContentValues();
+        cv.put(COLUMN_FOLDER_NAME, folderName);
+        
+        Cursor c = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS, null);
+        int sortOrder = 0;
+        if (c != null && c.moveToFirst() && !c.isNull(0)) {
+            sortOrder = c.getInt(0) + 1;
+        }
+        if (c != null) c.close();
+        cv.put(COLUMN_SORT_ORDER, sortOrder);
+        
+        db.insert(TABLE_FOLDERS, null, cv);
+    }
+
+    /**
+     * Reads all folders.
+     */
+    public Cursor readAllFolders() {
+        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        return db.rawQuery("SELECT * FROM " + TABLE_FOLDERS + " ORDER BY " + COLUMN_SORT_ORDER + " ASC", null);
+    }
+
+    /**
+     * Reads entries for a specific folder, or root if folderId is null.
+     */
+    public Cursor readEntriesByFolder(Integer folderId) {
+        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        String query;
+        if (folderId == null) {
+            query = "SELECT * FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            return db.rawQuery(query, null);
+        } else {
+            query = "SELECT * FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ? ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            return db.rawQuery(query, new String[]{String.valueOf(folderId)});
+        }
+    }
+
+    /**
+     * Deletes a folder and handles cascading logic.
+     * @param cascade If true, delete all passwords in this folder. If false, move them to root (folder_id = NULL).
+     */
+    public void deleteFolder(String folderId, boolean cascade) {
+        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        if (cascade) {
+            db.delete(TABLE_NAME, COLUMN_FOLDER_ID + "=?", new String[]{folderId});
+        } else {
+            ContentValues cv = new ContentValues();
+            cv.putNull(COLUMN_FOLDER_ID);
+            db.update(TABLE_NAME, cv, COLUMN_FOLDER_ID + "=?", new String[]{folderId});
+        }
+        db.delete(TABLE_FOLDERS, "id=?", new String[]{folderId});
+    }
+
+    /**
+     * Duplicates a folder and all the passwords inside it.
+     */
+    public void duplicateFolder(String folderId, String originalFolderName) {
+        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        
+        // 1. Create new folder
+        String newFolderName = originalFolderName + " (Copy)";
+        ContentValues cvFolder = new ContentValues();
+        cvFolder.put(COLUMN_FOLDER_NAME, newFolderName);
+        
+        Cursor cSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS, null);
+        int sortOrder = 0;
+        if (cSort != null && cSort.moveToFirst() && !cSort.isNull(0)) {
+            sortOrder = cSort.getInt(0) + 1;
+        }
+        if (cSort != null) cSort.close();
+        cvFolder.put(COLUMN_SORT_ORDER, sortOrder);
+        
+        long newFolderId = db.insert(TABLE_FOLDERS, null, cvFolder);
+        
+        if (newFolderId == -1) return; // Insertion failed
+
+        // 2. Duplicate all passwords inside the original folder
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{folderId});
+        if (cursor != null && cursor.moveToFirst()) {
+            db.beginTransaction();
+            try {
+                do {
+                    @SuppressLint("Range") String passName = cursor.getString(cursor.getColumnIndex(COLUMN_NAME));
+                    @SuppressLint("Range") String passEmail = cursor.getString(cursor.getColumnIndex(COLUMN_EMAIL));
+                    @SuppressLint("Range") String passEncrypted = cursor.getString(cursor.getColumnIndex(COLUMN_PASSWORD));
+                    
+                    ContentValues cvPass = new ContentValues();
+                    cvPass.put(COLUMN_NAME, passName); // Keep exact same name for recursive items, or add Copy, let's keep exact
+                    cvPass.put(COLUMN_EMAIL, passEmail);
+                    cvPass.put(COLUMN_PASSWORD, passEncrypted); // already encrypted
+                    cvPass.put(COLUMN_FOLDER_ID, newFolderId);
+                    
+                    Cursor cPassSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = " + newFolderId, null);
+                    int passSortOrder = 0;
+                    if (cPassSort != null && cPassSort.moveToFirst() && !cPassSort.isNull(0)) {
+                        passSortOrder = cPassSort.getInt(0) + 1;
+                    }
+                    if (cPassSort != null) cPassSort.close();
+                    cvPass.put(COLUMN_SORT_ORDER, passSortOrder);
+                    
+                    db.insert(TABLE_NAME, null, cvPass);
+                } while (cursor.moveToNext());
+                db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
+            }
+        }
+        if (cursor != null) cursor.close();
+    }
+
+    /**
+     * Renames a folder.
+     */
+    public void updateFolderName(String folderId, String newName) {
+        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        ContentValues cv = new ContentValues();
+        cv.put(COLUMN_FOLDER_NAME, newName);
+        db.update(TABLE_FOLDERS, cv, "id=?", new String[]{folderId});
+    }
+    
+    /**
+     * Duplicates a password entry.
+     */
+    public void duplicateEntry(String rowId, Integer targetFolderId) {
+        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_NAME + " WHERE id=?", new String[]{rowId});
+        
+        if (cursor != null && cursor.moveToFirst()) {
+            @SuppressLint("Range") String name = cursor.getString(cursor.getColumnIndex(COLUMN_NAME)) + " (Copy)";
+            @SuppressLint("Range") String email = cursor.getString(cursor.getColumnIndex(COLUMN_EMAIL));
+            @SuppressLint("Range") String pass = cursor.getString(cursor.getColumnIndex(COLUMN_PASSWORD));
+            cursor.close();
+            
+            ContentValues cv = new ContentValues();
+            cv.put(COLUMN_NAME, name);
+            cv.put(COLUMN_EMAIL, email);
+            cv.put(COLUMN_PASSWORD, pass); // Store raw from db, which is encrypted
+            if (targetFolderId != null) {
+                cv.put(COLUMN_FOLDER_ID, targetFolderId);
+            }
+            
+            Cursor c = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + (targetFolderId == null ? COLUMN_FOLDER_ID + " IS NULL" : COLUMN_FOLDER_ID + " = " + targetFolderId), null);
+            int sortOrder = 0;
+            if (c != null && c.moveToFirst() && !c.isNull(0)) {
+                sortOrder = c.getInt(0) + 1;
+            }
+            if (c != null) c.close();
+            cv.put(COLUMN_SORT_ORDER, sortOrder);
+
+            SQLiteDatabase writeDb = this.getWritableDatabase(KEY_ENCRYPTION);
+            writeDb.insert(TABLE_NAME, null, cv);
+        }
+    }
+
+    /**
+     * Updates the sort order for a folder.
+     */
+    public void updateFolderSortOrder(String folderId, int newSortOrder) {
+        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        ContentValues cv = new ContentValues();
+        cv.put(COLUMN_SORT_ORDER, newSortOrder);
+        db.update(TABLE_FOLDERS, cv, "id=?", new String[]{folderId});
+    }
+
+    /**
+     * Updates the sort order for a password entry.
+     */
+    public void updateEntrySortOrder(String entryId, int newSortOrder) {
+        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        ContentValues cv = new ContentValues();
+        cv.put(COLUMN_SORT_ORDER, newSortOrder);
+        db.update(TABLE_NAME, cv, "id=?", new String[]{entryId});
     }
 
 
@@ -298,7 +519,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 String password = jsonObject.getString(COLUMN_PASSWORD);
 
                 if (!checkIfAccountAlreadyExist(context, name, email)) {
-                    addEntry(context, name, email, password);
+                    addEntry(context, name, email, password, null);
                 } else {
                     Log.w("8953467", "entry: " + name + " " + email + " already exists");
                 }

@@ -7,8 +7,10 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.view.MotionEvent;
 import androidx.cardview.widget.CardView;
 
 import androidx.annotation.NonNull;
@@ -31,18 +33,20 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
     private final Context context;
     private final List<ListItem> dataList;
     private final Activity activity;
-    private OnFolderClickListener folderClickListener;
+    private OnItemInteractionListener interactionListener;
 
-    public interface OnFolderClickListener {
+    public interface OnItemInteractionListener {
         void onFolderClick(FolderData folderData);
         void onFolderLongClick(FolderData folderData);
+        void onPasswordLongClick(UserData userData);
+        void onStartDrag(RecyclerView.ViewHolder viewHolder);
     }
 
-    public CustomAdapter(Activity activity, Context context, List<ListItem> dataList, OnFolderClickListener folderClickListener) {
+    public CustomAdapter(Activity activity, Context context, List<ListItem> dataList, OnItemInteractionListener interactionListener) {
         this.activity = activity;
         this.context = context;
         this.dataList = dataList;
-        this.folderClickListener = folderClickListener;
+        this.interactionListener = interactionListener;
     }
 
     @Override
@@ -81,17 +85,24 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
 
             folderHolder.mainLayoutFolder.setOnClickListener(view -> {
                 VibrationHelper.vibrate(view, VibrationHelper.VibrationType.Weak);
-                if (folderClickListener != null) {
-                    folderClickListener.onFolderClick(folderData);
+                if (interactionListener != null) {
+                    interactionListener.onFolderClick(folderData);
                 }
             });
 
             folderHolder.mainLayoutFolder.setOnLongClickListener(view -> {
                 VibrationHelper.vibrate(view, VibrationHelper.VibrationType.Strong);
-                if (folderClickListener != null) {
-                    folderClickListener.onFolderLongClick(folderData);
+                if (interactionListener != null) {
+                    interactionListener.onFolderLongClick(folderData);
                 }
                 return true;
+            });
+            
+            folderHolder.dragHandle.setOnTouchListener((v, event) -> {
+                if (event.getAction() == MotionEvent.ACTION_DOWN && interactionListener != null) {
+                    interactionListener.onStartDrag(folderHolder);
+                }
+                return false;
             });
 
         } else if (holder.getItemViewType() == ListItem.TYPE_PASSWORD) {
@@ -135,6 +146,21 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
                         .addToBackStack(null)
                         .commit();
             });
+            
+            passwordHolder.mainLayout.setOnLongClickListener(view -> {
+                VibrationHelper.vibrate(view, VibrationHelper.VibrationType.Strong);
+                if (interactionListener != null) {
+                    interactionListener.onPasswordLongClick(userData);
+                }
+                return true;
+            });
+            
+            passwordHolder.dragHandle.setOnTouchListener((v, event) -> {
+                if (event.getAction() == MotionEvent.ACTION_DOWN && interactionListener != null) {
+                    interactionListener.onStartDrag(passwordHolder);
+                }
+                return false;
+            });
         }
     }
 
@@ -153,11 +179,13 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
     public static class FolderViewHolder extends RecyclerView.ViewHolder {
         TextView folder_name_txt;
         CardView mainLayoutFolder;
+        ImageView dragHandle;
 
         public FolderViewHolder(@NonNull View itemView) {
             super(itemView);
             folder_name_txt = itemView.findViewById(R.id.folder_name_txt);
             mainLayoutFolder = itemView.findViewById(R.id.mainLayoutFolder);
+            dragHandle = itemView.findViewById(R.id.folder_drag_handle);
         }
     }
 
@@ -165,6 +193,7 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
 
         TextView row_name_txt, row_email_txt, row_tw_txt;
         CardView mainLayout;
+        ImageView dragHandle;
 
         public PasswordViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -173,6 +202,7 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
             row_tw_txt = itemView.findViewById(R.id.row_tw_txt);
             row_email_txt = itemView.findViewById(R.id.row_email_txt);
             mainLayout = itemView.findViewById(R.id.mainLayout);
+            dragHandle = itemView.findViewById(R.id.password_drag_handle);
         }
     }
 }

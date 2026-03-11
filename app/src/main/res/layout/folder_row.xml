@@ -20,8 +20,9 @@
         android:id="@+id/folder_icon"
         android:layout_width="48dp"
         android:layout_height="48dp"
-        android:src="@drawable/icon_entry"
-        android:padding="12dp"
+        android:src="@drawable/icon_folder_modern"
+        android:tint="@color/accent"
+        android:padding="8dp"
         android:contentDescription="Folder Icon"
         android:layout_gravity="center_vertical" />
 
@@ -42,5 +43,14 @@
             android:textSize="18sp"
             android:textStyle="bold" />
     </LinearLayout>
+    
+    <ImageView
+        android:id="@+id/folder_drag_handle"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:src="@drawable/icon_drag_handle"
+        android:padding="4dp"
+        android:contentDescription="Drag Handle"
+        android:layout_gravity="center_vertical" />
 </LinearLayout>
 </androidx.cardview.widget.CardView>

@@ -317,7 +317,7 @@ public class UpdatePasswordFragment extends Fragment {
             }
         }
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(), R.layout.spinner_item, folderNames);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(requireContext(), R.layout.spinner_selected_item, folderNames);
         adapter.setDropDownViewResource(R.layout.spinner_item);
         folderSpinner.setAdapter(adapter);
         folderSpinner.setSelection(defaultSelectionIndex);

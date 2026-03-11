@@ -188,7 +188,9 @@ public class MainViewFragment extends Fragment {
         }
 
         mainViewModel.getDataList().observe(getViewLifecycleOwner(), dataList -> {
-            CustomAdapter customAdapter = new CustomAdapter(this.getActivity(), this.getContext(), dataList, new CustomAdapter.OnFolderClickListener() {
+            ItemTouchHelper[] touchHelper = new ItemTouchHelper[1];
+
+            CustomAdapter customAdapter = new CustomAdapter(this.getActivity(), this.getContext(), dataList, new CustomAdapter.OnItemInteractionListener() {
                 @Override
                 public void onFolderClick(FolderData folder) {
                     currentFolderId = Integer.parseInt(folder.getId());
@@ -199,6 +201,18 @@ public class MainViewFragment extends Fragment {
                 @Override
                 public void onFolderLongClick(FolderData folder) {
                     showFolderContextMenu(folder);
+                }
+                
+                @Override
+                public void onPasswordLongClick(UserData userData) {
+                    showPasswordContextMenu(userData);
+                }
+
+                @Override
+                public void onStartDrag(RecyclerView.ViewHolder viewHolder) {
+                    if (touchHelper[0] != null) {
+                        touchHelper[0].startDrag(viewHolder);
+                    }
                 }
             });
             recyclerView.setAdapter(customAdapter);
@@ -233,8 +247,9 @@ public class MainViewFragment extends Fragment {
                     }
                 }
             };
-            ItemTouchHelper touchHelper = new ItemTouchHelper(callback);
-            touchHelper.attachToRecyclerView(recyclerView);
+            ItemTouchHelper touchHelperInstance = new ItemTouchHelper(callback);
+            touchHelperInstance.attachToRecyclerView(recyclerView);
+            touchHelper[0] = touchHelperInstance;
 
             Log.i("235903425", "sus");
 
@@ -275,7 +290,9 @@ public class MainViewFragment extends Fragment {
                     mainViewModel.storeSearchedDataInArrays(searchTerm);
 
                     mainViewModel.getSearchedDataList().observe(getViewLifecycleOwner(), searchedDataList -> {
-                        CustomAdapter customAdapter = new CustomAdapter(this.getActivity(), this.getContext(), searchedDataList, new CustomAdapter.OnFolderClickListener() {
+                        ItemTouchHelper[] touchHelper = new ItemTouchHelper[1];
+                        
+                        CustomAdapter customAdapter = new CustomAdapter(this.getActivity(), this.getContext(), searchedDataList, new CustomAdapter.OnItemInteractionListener() {
                             @Override
                             public void onFolderClick(FolderData folder) {
                                 currentFolderId = Integer.parseInt(folder.getId());
@@ -287,9 +304,52 @@ public class MainViewFragment extends Fragment {
                             public void onFolderLongClick(FolderData folder) {
                                 showFolderContextMenu(folder);
                             }
+                            
+                            @Override
+                            public void onPasswordLongClick(UserData userData) {
+                                showPasswordContextMenu(userData);
+                            }
+
+                            @Override
+                            public void onStartDrag(RecyclerView.ViewHolder viewHolder) {
+                                if (touchHelper[0] != null) {
+                                    touchHelper[0].startDrag(viewHolder);
+                                }
+                            }
                         });
                         recyclerView.setAdapter(customAdapter);
                         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+                        
+                        ItemTouchHelper.Callback callback = new ItemTouchHelper.SimpleCallback(
+                            ItemTouchHelper.UP | ItemTouchHelper.DOWN | ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT, 0) {
+                            @Override
+                            public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
+                                int fromPosition = viewHolder.getAdapterPosition();
+                                int toPosition = target.getAdapterPosition();
+                                customAdapter.moveItem(fromPosition, toPosition);
+                                return true;
+                            }
+            
+                            @Override
+                            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {}
+            
+                            @Override
+                            public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+                                super.clearView(recyclerView, viewHolder);
+                                com.gero.newpass.database.DatabaseHelper db = com.gero.newpass.database.DatabaseServiceLocator.getDatabaseHelper();
+                                for (int i = 0; i < searchedDataList.size(); i++) {
+                                    ListItem item = searchedDataList.get(i);
+                                    if (item.getType() == ListItem.TYPE_FOLDER) {
+                                        db.updateFolderSortOrder(((FolderData)item).getId(), i);
+                                    } else {
+                                        db.updateEntrySortOrder(((UserData)item).getId(), i);
+                                    }
+                                }
+                            }
+                        };
+                        ItemTouchHelper touchHelperInstance = new ItemTouchHelper(callback);
+                        touchHelperInstance.attachToRecyclerView(recyclerView);
+                        touchHelper[0] = touchHelperInstance;
 
                         count.setText("[" + customAdapter.getItemCount() + "]");
 
@@ -383,6 +443,65 @@ public class MainViewFragment extends Fragment {
                     populateUI();
                 })
                 .setNegativeButton(R.string.cancel, (dialog, which) -> dialog.cancel());
+        builder.show();
+    }
+
+    private void showPasswordContextMenu(UserData password) {
+        String[] options = {"Copy Password", "Move to Folder", "Delete"};
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        builder.setTitle(password.getName())
+               .setItems(options, (dialog, which) -> {
+                   if (which == 0) {
+                        try {
+                            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) requireActivity().getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+                            android.content.ClipData clip = android.content.ClipData.newPlainText("Copied Password", com.gero.newpass.encryption.EncryptionHelper.decrypt(password.getPassword()));
+                            clipboard.setPrimaryClip(clip);
+                            android.widget.Toast.makeText(requireContext(), "Password Copied", android.widget.Toast.LENGTH_SHORT).show();
+                        } catch (Exception ignored) {}
+                   } else if (which == 1) {
+                        showMoveToFolderDialog(password);
+                   } else if (which == 2) {
+                        com.gero.newpass.database.DatabaseHelper db = com.gero.newpass.database.DatabaseServiceLocator.getDatabaseHelper();
+                        db.deleteOneRow(password.getId());
+                        populateUI();
+                   }
+               });
+        builder.show();
+    }
+
+    private void showMoveToFolderDialog(UserData password) {
+        com.gero.newpass.database.DatabaseHelper db = com.gero.newpass.database.DatabaseServiceLocator.getDatabaseHelper();
+        android.database.Cursor cursor = db.readAllFolders();
+        
+        java.util.List<String> folderNames = new java.util.ArrayList<>();
+        java.util.List<Integer> folderIds = new java.util.ArrayList<>();
+        
+        // Root option
+        folderNames.add("Root (No Folder)");
+        folderIds.add(-1);
+        
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                @SuppressLint("Range") int id = cursor.getInt(cursor.getColumnIndex("id"));
+                @SuppressLint("Range") String name = cursor.getString(cursor.getColumnIndex("folder_name"));
+                folderIds.add(id);
+                folderNames.add(name);
+            } while (cursor.moveToNext());
+            cursor.close();
+        }
+
+        String[] options = folderNames.toArray(new String[0]);
+        
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        builder.setTitle("Move to Folder")
+               .setItems(options, (dialog, which) -> {
+                   Integer targetFolderId = folderIds.get(which);
+                   if (targetFolderId == -1) targetFolderId = null;
+                   
+                   db.updateData(password.getId(), password.getName(), password.getEmail(), password.getPassword(), targetFolderId);
+                   populateUI();
+               })
+               .setNegativeButton(R.string.cancel, (dialog, which) -> dialog.cancel());
         builder.show();
     }
 

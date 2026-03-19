@@ -152,18 +152,23 @@ public class DialogHelper {
                     AlertDialog loadingDialog = showLoadingDialog(context, "Importing...");
                     
                     executor.execute(() -> {
+                        int[] results = null;
                         try {
-                            DatabaseHelper.importJsonToDatabase(context, fileURL, password);
+                            results = DatabaseHelper.importJsonToDatabase(context, fileURL, password);
                         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
                             Log.e("8953467", "Error: ", e);
-                            mainHandler.post(() -> 
-                                Toast.makeText(context, R.string.error_importing_database, Toast.LENGTH_LONG).show()
-                            );
                         }
                         
+                        final int[] finalResults = results;
                         mainHandler.post(() -> {
                             if (loadingDialog.isShowing()) {
                                 loadingDialog.dismiss();
+                            }
+                            
+                            if (finalResults != null) {
+                                showImportSummaryDialog(context, finalResults[0], finalResults[1], finalResults[2]);
+                            } else {
+                                Toast.makeText(context, R.string.error_importing_database, Toast.LENGTH_LONG).show();
                             }
                         });
                     });
@@ -196,5 +201,34 @@ public class DialogHelper {
         dialog.show();
         
         return dialog;
+    }
+
+    /**
+     * Shows a beautiful import summary dialog with stats for added, ignored, and conflict entries.
+     */
+    private static void showImportSummaryDialog(Context context, int added, int ignored, int conflicts) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        LayoutInflater inflater = LayoutInflater.from(context);
+        View dialogView = inflater.inflate(R.layout.dialog_import_summary, null);
+
+        TextView countAdded = dialogView.findViewById(R.id.count_added);
+        TextView countIgnored = dialogView.findViewById(R.id.count_ignored);
+        TextView countConflicts = dialogView.findViewById(R.id.count_conflicts);
+
+        countAdded.setText(String.valueOf(added));
+        countIgnored.setText(String.valueOf(ignored));
+        countConflicts.setText(String.valueOf(conflicts));
+
+        builder.setView(dialogView);
+        builder.setCancelable(false);
+
+        AlertDialog dialog = builder.create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(R.drawable.bg_dialog_rounded);
+        }
+
+        dialogView.findViewById(R.id.btn_done).setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
     }
 }

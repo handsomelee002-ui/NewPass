@@ -760,17 +760,18 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             db.close();
         }
     }
-
-
-    public static void importJsonToDatabase(Context context, Uri fileUri, String passwordGotFromUser) throws NoSuchAlgorithmException, InvalidKeySpecException {
+    public static int[] importJsonToDatabase(Context context, Uri fileUri, String passwordGotFromUser) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
         String jsonEncryptedString = readJsonFromFile(context, fileUri);
         String jsonDecryptedString = EncryptionHelper.decryptDatabase(context, jsonEncryptedString, passwordGotFromUser);
 
         if (jsonDecryptedString == null) {
             Log.e("8953467", "Error reading JSON file");
-            return;
+            return null;
         }
+
+        // Import counters: [0] = added, [1] = ignored (exact match), [2] = conflict
+        int[] counters = new int[3];
 
         try {
             JSONObject importData = null;
@@ -785,6 +786,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 throw new JSONException("Unsupported JSON format");
             }
 
+            SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE);
+
             if (oldFormatArray != null) {
                 // LEGACY FORMAT: Flat Array of Passwords
                 for (int i = 0; i < oldFormatArray.length(); i++) {
@@ -793,53 +796,71 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     String email = jsonObject.getString(COLUMN_EMAIL);
                     String password = jsonObject.getString(COLUMN_PASSWORD);
 
-                    if (!checkIfAccountAlreadyExist(context, name, email)) {
-                        addEntry(context, name, email, password, null);
-                    } else {
-                        Log.w("8953467", "entry: " + name + " " + email + " already exists");
-                    }
+                    int result = importPasswordWithConflictCheck(db, context, name, email, password, null);
+                    counters[result]++;
                 }
             } else if (importData != null) {
                 // NEW FORMAT: Structured Folders and Passwords
-                SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE);
-
                 JSONArray foldersArray = importData.optJSONArray("folders");
                 java.util.HashMap<Integer, Integer> folderIdMap = new java.util.HashMap<>();
 
                 if (foldersArray != null) {
-                    // First pass: create all folders without parent references
+                    // Build a lookup of imported parent relationships (old IDs)
+                    java.util.HashMap<Integer, Integer> importedParentMap = new java.util.HashMap<>();
                     for (int i = 0; i < foldersArray.length(); i++) {
                         JSONObject fObj = foldersArray.getJSONObject(i);
                         int oldId = fObj.getInt(COLUMN_ID);
-                        String fName = fObj.getString(COLUMN_FOLDER_NAME);
-                        int sortO = fObj.optInt(COLUMN_SORT_ORDER, 0);
-
-                        ContentValues cv = new ContentValues();
-                        cv.put(COLUMN_FOLDER_NAME, fName);
-                        cv.put(COLUMN_SORT_ORDER, sortO);
-                        // Don't set parent yet; will fix in second pass
-
-                        long newFolderId = db.insert(TABLE_FOLDERS, null, cv);
-                        if (newFolderId != -1) {
-                            folderIdMap.put(oldId, (int) newFolderId);
+                        if (fObj.has(COLUMN_PARENT_FOLDER_ID)) {
+                            importedParentMap.put(oldId, fObj.getInt(COLUMN_PARENT_FOLDER_ID));
                         }
                     }
-                    
-                    // Second pass: update parent folder IDs using the mapping
-                    for (int i = 0; i < foldersArray.length(); i++) {
-                        JSONObject fObj = foldersArray.getJSONObject(i);
-                        int oldId = fObj.getInt(COLUMN_ID);
-                        
-                        if (fObj.has(COLUMN_PARENT_FOLDER_ID)) {
-                            int oldParentId = fObj.getInt(COLUMN_PARENT_FOLDER_ID);
-                            Integer newParentId = folderIdMap.get(oldParentId);
-                            Integer newId = folderIdMap.get(oldId);
-                            
-                            if (newParentId != null && newId != null) {
-                                ContentValues cv = new ContentValues();
-                                cv.put(COLUMN_PARENT_FOLDER_ID, newParentId);
-                                db.update(TABLE_FOLDERS, cv, "id=?", new String[]{String.valueOf(newId)});
+
+                    // Process folders in dependency order (parents before children)
+                    java.util.Set<Integer> processed = new java.util.HashSet<>();
+                    boolean progress = true;
+                    while (progress) {
+                        progress = false;
+                        for (int i = 0; i < foldersArray.length(); i++) {
+                            JSONObject fObj = foldersArray.getJSONObject(i);
+                            int oldId = fObj.getInt(COLUMN_ID);
+                            if (processed.contains(oldId)) continue;
+
+                            // Check if parent is already processed (or has no parent)
+                            Integer oldParentId = importedParentMap.get(oldId);
+                            if (oldParentId != null && !processed.contains(oldParentId)) {
+                                continue; // Parent not yet processed, skip for now
                             }
+
+                            String fName = fObj.getString(COLUMN_FOLDER_NAME);
+                            int sortO = fObj.optInt(COLUMN_SORT_ORDER, 0);
+
+                            // Resolve parent to new ID
+                            Integer newParentId = (oldParentId != null) ? folderIdMap.get(oldParentId) : null;
+
+                            // Check if a folder with same name already exists at this parent level
+                            Integer existingFolderId = findExistingFolderByNameAndParent(db, fName, newParentId);
+
+                            if (existingFolderId != null) {
+                                // Merge: map imported folder to existing folder
+                                folderIdMap.put(oldId, existingFolderId);
+                                Log.d("8953467", "Folder merged: " + fName + " → existing id " + existingFolderId);
+                            } else {
+                                // Create new folder
+                                ContentValues cv = new ContentValues();
+                                cv.put(COLUMN_FOLDER_NAME, fName);
+                                cv.put(COLUMN_SORT_ORDER, sortO);
+                                if (newParentId != null) {
+                                    cv.put(COLUMN_PARENT_FOLDER_ID, newParentId);
+                                }
+                                long newFolderId = db.insert(TABLE_FOLDERS, null, cv);
+                                if (newFolderId != -1) {
+                                    folderIdMap.put(oldId, (int) newFolderId);
+                                    Log.d("8953467", "Folder created: " + fName + " → new id " + newFolderId);
+                                }
+                            }
+
+                            processed.add(oldId);
+                            progress = true;
                         }
                     }
                 }
@@ -858,29 +879,135 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                             newFolderId = folderIdMap.get(oldFolderId);
                         }
 
-                        if (!checkIfAccountAlreadyExist(context, name, email)) {
-                            addEntry(context, name, email, password, newFolderId);
-                        } else {
-                            Log.w("8953467", "entry: " + name + " " + email + " already exists");
-                        }
+                        int result = importPasswordWithConflictCheck(db, context, name, email, password, newFolderId);
+                        counters[result]++;
                     }
                 }
-                db.close();
-            }
 
+                // Clean up empty folders that were newly created during import
+                removeEmptyImportedFolders(db);
+            }
+            
+            db.close();
             Log.d("8953467", "Data imported from JSON to database successfully");
-            new Handler(Looper.getMainLooper()).post(() ->
-                Toast.makeText(context, R.string.database_imported_successfully, Toast.LENGTH_LONG).show()
-            );
+            return counters;
 
         } catch (JSONException e) {
             new Handler(Looper.getMainLooper()).post(() ->
                 Toast.makeText(context, R.string.error_importing_database, Toast.LENGTH_LONG).show()
             );
             Log.e("8953467", "Error parsing JSON", e);
+            return null;
         }
     }
 
+    /**
+     * Import result codes
+     */
+    private static final int IMPORT_ADDED = 0;
+    private static final int IMPORT_IGNORED = 1;
+    private static final int IMPORT_CONFLICT = 2;
+
+    /**
+     * Imports a password entry with 3-way conflict resolution:
+     * 1. Title+Username+Password all match → skip (duplicate) → returns IMPORT_IGNORED
+     * 2. Title+Username match but Password differs → import with "(Conflict)" → returns IMPORT_CONFLICT
+     * 3. No match → import normally → returns IMPORT_ADDED
+     *
+     * @param password The PLAINTEXT password from the import file
+     * @return IMPORT_ADDED (0), IMPORT_IGNORED (1), or IMPORT_CONFLICT (2)
+     */
+    @SuppressLint("Range")
+    private static int importPasswordWithConflictCheck(SQLiteDatabase db, Context context, String name, String email, String password, Integer folderId) {
+        // Look for existing entries with same title + username
+        Cursor cursor = db.query(TABLE_NAME, new String[]{COLUMN_PASSWORD},
+                COLUMN_NAME + " = ? AND " + COLUMN_EMAIL + " = ?",
+                new String[]{name, email}, null, null, null);
+
+        if (cursor != null && cursor.moveToFirst()) {
+            // Found existing entry(ies) with same name+email
+            boolean exactMatch = false;
+            do {
+                String existingEncryptedPassword = cursor.getString(cursor.getColumnIndex(COLUMN_PASSWORD));
+                String existingDecryptedPassword = EncryptionHelper.decrypt(existingEncryptedPassword);
+                if (password.equals(existingDecryptedPassword)) {
+                    exactMatch = true;
+                    break;
+                }
+            } while (cursor.moveToNext());
+            cursor.close();
+
+            if (exactMatch) {
+                // Case 1: Exact duplicate — skip
+                Log.d("8953467", "Import skipped (exact duplicate): " + name + " / " + email);
+                return IMPORT_IGNORED;
+            } else {
+                // Case 2: Same title+username but different password — import with (Conflict)
+                Log.d("8953467", "Import conflict: " + name + " / " + email + " — appending (Conflict)");
+                addEntry(context, name + " (Conflict)", email, password, folderId);
+                return IMPORT_CONFLICT;
+            }
+        } else {
+            // Case 3: No match — import normally
+            if (cursor != null) cursor.close();
+            addEntry(context, name, email, password, folderId);
+            return IMPORT_ADDED;
+        }
+    }
+
+    /**
+     * Finds an existing folder with the same name at the same parent level.
+     * Used for folder merging during import.
+     *
+     * @return The ID of the existing folder if found, null otherwise
+     */
+    @SuppressLint("Range")
+    private static Integer findExistingFolderByNameAndParent(SQLiteDatabase db, String folderName, Integer parentId) {
+        String query;
+        String[] args;
+        
+        if (parentId == null) {
+            query = "SELECT id FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_FOLDER_NAME + " = ? AND " + COLUMN_PARENT_FOLDER_ID + " IS NULL";
+            args = new String[]{folderName};
+        } else {
+            query = "SELECT id FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_FOLDER_NAME + " = ? AND " + COLUMN_PARENT_FOLDER_ID + " = ?";
+            args = new String[]{folderName, String.valueOf(parentId)};
+        }
+        
+        Cursor cursor = db.rawQuery(query, args);
+        Integer result = null;
+        if (cursor != null && cursor.moveToFirst()) {
+            result = cursor.getInt(cursor.getColumnIndex("id"));
+        }
+        if (cursor != null) cursor.close();
+        return result;
+    }
+
+    /**
+     * Removes folders that have no passwords and no sub-folders (empty leaf folders).
+     * Runs iteratively until no more empty folders can be removed.
+     */
+    private static void removeEmptyImportedFolders(SQLiteDatabase db) {
+        boolean removed = true;
+        while (removed) {
+            removed = false;
+            // Find folders that have zero passwords AND zero sub-folders
+            String query = "SELECT f.id FROM " + TABLE_FOLDERS + " f"
+                    + " WHERE NOT EXISTS (SELECT 1 FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = f.id)"
+                    + " AND NOT EXISTS (SELECT 1 FROM " + TABLE_FOLDERS + " f2 WHERE f2." + COLUMN_PARENT_FOLDER_ID + " = f.id)";
+            
+            Cursor cursor = db.rawQuery(query, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    @SuppressLint("Range") int folderId = cursor.getInt(cursor.getColumnIndex("id"));
+                    db.delete(TABLE_FOLDERS, "id=?", new String[]{String.valueOf(folderId)});
+                    removed = true;
+                    Log.d("8953467", "Removed empty folder id: " + folderId);
+                } while (cursor.moveToNext());
+                cursor.close();
+            }
+        }
+    }
     private static String readJsonFromFile(Context context, Uri fileUri) {
         try {
             InputStream inputStream = context.getContentResolver().openInputStream(fileUri);

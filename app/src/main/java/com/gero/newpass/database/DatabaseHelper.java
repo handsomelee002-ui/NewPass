@@ -10,6 +10,8 @@ import net.sqlcipher.database.SQLiteOpenHelper;
 
 import android.net.Uri;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -743,12 +745,16 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             fileWriter.close();
 
             Log.d("8953467", "Database exported to JSON successfully");
-            Toast.makeText(context, context.getString(R.string.database_successfully_exported_to) + " " + Environment.DIRECTORY_DOWNLOADS, Toast.LENGTH_LONG).show();
+            new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(context, context.getString(R.string.database_successfully_exported_to) + " " + Environment.DIRECTORY_DOWNLOADS, Toast.LENGTH_LONG).show()
+            );
 
 
         } catch (IOException e) {
             Log.e("8953467", "Error: ", e);
-            Toast.makeText(context, R.string.export_failed, Toast.LENGTH_LONG).show();
+            new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(context, R.string.export_failed, Toast.LENGTH_LONG).show()
+            );
 
         } finally {
             db.close();
@@ -863,10 +869,14 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             }
 
             Log.d("8953467", "Data imported from JSON to database successfully");
-            Toast.makeText(context, R.string.database_imported_successfully, Toast.LENGTH_LONG).show();
+            new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(context, R.string.database_imported_successfully, Toast.LENGTH_LONG).show()
+            );
 
         } catch (JSONException e) {
-            Toast.makeText(context, R.string.error_importing_database, Toast.LENGTH_LONG).show();
+            new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(context, R.string.error_importing_database, Toast.LENGTH_LONG).show()
+            );
             Log.e("8953467", "Error parsing JSON", e);
         }
     }
@@ -886,7 +896,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 return stringBuilder.toString();
             }
         } catch (IOException e) {
-            Toast.makeText(context, R.string.error_importing_database, Toast.LENGTH_LONG).show();
+            new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(context, R.string.error_importing_database, Toast.LENGTH_LONG).show()
+            );
             Log.e("8953467", "Error reading JSON file", e);
         }
         return null;

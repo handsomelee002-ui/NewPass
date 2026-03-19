@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     android:background="@color/background_primary"
     tools:context=".view.activities.MainViewActivity">
 
@@ -13,8 +14,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:paddingHorizontal="24dp"
-        android:paddingTop="24dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="12dp"
         app:layout_constraintTop_toTopOf="parent">
 
         <TextView
@@ -25,7 +28,9 @@
             android:fontFamily="@font/jetbrainsmonobold"
             android:text="@string/main_saved_password"
             android:textColor="@color/text_primary"
-            android:textSize="28sp" />
+            android:textSize="28sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
         <ImageButton
             android:id="@+id/button_Settings"
@@ -35,8 +40,18 @@
             android:padding="8dp"
             android:scaleType="fitCenter"
             android:src="@drawable/btn_settings"
+            android:contentDescription="Settings"
             android:layout_gravity="center_vertical" />
     </LinearLayout>
+
+    <!-- Header bottom divider -->
+    <View
+        android:id="@+id/headerDivider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginHorizontal="24dp"
+        android:background="@color/background_secondary"
+        app:layout_constraintTop_toBottomOf="@+id/topBar" />
 
     <!-- Action Buttons Row -->
     <LinearLayout

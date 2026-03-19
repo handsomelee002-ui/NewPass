@@ -1,0 +1,13 @@
+2. Meaning I have to manually add it?
+Yes, but only if/when you are ready to give the final finished app to other people. If you don't care about hackers reverse-engineering or modifying your app's code in the future, you never have to change it at all. Leaving it as the default simply means this specific layer of security is turned off.
+
+3. How do you get that number?
+When you are finally ready to export your finished app as an APK to give to others, Android Studio makes you create a secure "Keystore file" (a digital lock/signature) to sign the app.
+
+Once you have that Keystore, getting the SHA-256 fingerprint number is very easy. The fastest way is directly inside Android Studio:
+
+Open the terminal at the bottom of Android Studio.
+Type .\gradlew.bat signingReport and hit Enter.
+Android Studio will print out a list, and you'll see a line that looks like this: SHA-256: A1:B2:C3:D4:E5:F6:77:88:99:00:AA:BB:CC:DD:EE:FF...
+You simply copy that long string and paste it into the OFFICIAL_SIGNATURE_SHA256 variable.
+From that moment on, if anyone tries to decompile your Android app, inject a virus or modify your code, and repackage it, their signature won't match yours, and the app will permanently block itself from opening on their phone!

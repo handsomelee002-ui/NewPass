@@ -4,9 +4,9 @@ import android.annotation.SuppressLint;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
-import net.sqlcipher.database.SQLiteDatabase;
-import net.sqlcipher.database.SQLiteException;
-import net.sqlcipher.database.SQLiteOpenHelper;
+import net.zetetic.database.sqlcipher.SQLiteDatabase;
+import android.database.sqlite.SQLiteException;
+import net.zetetic.database.sqlcipher.SQLiteOpenHelper;
 
 import android.net.Uri;
 import android.os.Environment;
@@ -54,9 +54,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String KEY_ENCRYPTION = StringHelper.getSharedString();
 
     public DatabaseHelper(@Nullable Context context) {
-        super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        super(context, DATABASE_NAME, KEY_ENCRYPTION, null, DATABASE_VERSION, 1, null, null, false);
         assert context != null;
-        SQLiteDatabase.loadLibs(context);
+        System.loadLibrary("sqlcipher");
     }
 
     @Override
@@ -111,31 +111,33 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @param password The password of the entry (it will be encrypted before being inserted into the database)
      */
     public static void addEntry(Context context, String name, String email, String password, Integer folderId) {
-        //SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
-        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE);
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
+        try {
+            ContentValues cv = new ContentValues();
 
-        ContentValues cv = new ContentValues();
+            String encryptedPassword = EncryptionHelper.encrypt(password);
 
-        String encryptedPassword = EncryptionHelper.encrypt(password);
+            cv.put(COLUMN_NAME, name);
+            cv.put(COLUMN_EMAIL, email);
+            cv.put(COLUMN_PASSWORD, encryptedPassword);
+            
+            if (folderId != null) {
+                cv.put(COLUMN_FOLDER_ID, folderId);
+            }
+            
+            // Get max sort order
+            Cursor c = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + (folderId == null ? COLUMN_FOLDER_ID + " IS NULL" : COLUMN_FOLDER_ID + " = " + folderId), null);
+            int sortOrder = 0;
+            if (c != null && c.moveToFirst() && !c.isNull(0)) {
+                sortOrder = c.getInt(0) + 1;
+            }
+            if (c != null) c.close();
+            cv.put(COLUMN_SORT_ORDER, sortOrder);
 
-        cv.put(COLUMN_NAME, name);
-        cv.put(COLUMN_EMAIL, email);
-        cv.put(COLUMN_PASSWORD, encryptedPassword);
-        
-        if (folderId != null) {
-            cv.put(COLUMN_FOLDER_ID, folderId);
+            db.insert(TABLE_NAME, null, cv);
+        } finally {
+            db.close();
         }
-        
-        // Get max sort order
-        Cursor c = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + (folderId == null ? COLUMN_FOLDER_ID + " IS NULL" : COLUMN_FOLDER_ID + " = " + folderId), null);
-        int sortOrder = 0;
-        if (c != null && c.moveToFirst() && !c.isNull(0)) {
-            sortOrder = c.getInt(0) + 1;
-        }
-        if (c != null) c.close();
-        cv.put(COLUMN_SORT_ORDER, sortOrder);
-
-        db.insert(TABLE_NAME, null, cv);
     }
 
 
@@ -147,7 +149,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @throws SQLiteException If there's an error accessing the database.
      */
     public Cursor readAllData() {
-        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
         String query = "SELECT * FROM " + TABLE_NAME;
 
         return db.rawQuery(query, null);
@@ -163,7 +165,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @throws SQLiteException If there's an error accessing the database.
      */
     public Cursor searchItem(String itemToSearch) {
-        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
 
         String query = "SELECT * " +
                 "FROM " + TABLE_NAME +
@@ -182,7 +184,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @param password The new value for the password column.
      */
     public void updateData(String row_id, String name, String email, String password, Integer folderId) {
-        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getWritableDatabase();
         ContentValues cv = new ContentValues();
 
         cv.put(COLUMN_NAME, name);
@@ -206,7 +208,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @throws SQLiteException If there's an error accessing or updating the database.
      */
     public void deleteOneRow(String rowId) {
-        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getWritableDatabase();
         db.delete(TABLE_NAME, "id=?", new String[]{rowId});
     }
 
@@ -214,7 +216,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * Adds a new folder with an optional parent folder ID for nesting.
      */
     public void addFolder(String folderName, Integer parentFolderId) {
-        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put(COLUMN_FOLDER_NAME, folderName);
         
@@ -245,7 +247,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * Reads all folders (used for spinners / folder pickers).
      */
     public Cursor readAllFolders() {
-        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
         return db.rawQuery("SELECT * FROM " + TABLE_FOLDERS + " ORDER BY " + COLUMN_SORT_ORDER + " ASC", null);
     }
 
@@ -254,7 +256,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * If parentFolderId is null, returns root-level folders.
      */
     public Cursor readFoldersByParent(Integer parentFolderId) {
-        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
         String query;
         if (parentFolderId == null) {
             query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
@@ -269,7 +271,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * Reads entries for a specific folder, or root if folderId is null.
      */
     public Cursor readEntriesByFolder(Integer folderId) {
-        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
         String query;
         if (folderId == null) {
             query = "SELECT * FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
@@ -286,7 +288,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @param cascade If true, delete all passwords in this folder and sub-folders. If false, move them to root (folder_id = NULL).
      */
     public void deleteFolder(String folderId, boolean cascade) {
-        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getWritableDatabase();
         
         // First, recursively delete/handle all child sub-folders
         Cursor childFolders = db.rawQuery("SELECT " + COLUMN_ID + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ?", new String[]{folderId});
@@ -322,7 +324,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     @SuppressLint("Range")
     private void duplicateFolderInternal(String folderId, String originalFolderName, boolean appendCopy) {
-        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getWritableDatabase();
         
         // 1. Get the original folder's parent
         Integer parentFolderId = null;
@@ -412,7 +414,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     @SuppressLint("Range")
     private void duplicateChildFolder(String originalFolderId, String folderName, int newParentFolderId) {
-        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getWritableDatabase();
         
         // Create the folder under the new parent
         ContentValues cvFolder = new ContentValues();
@@ -479,7 +481,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * Renames a folder.
      */
     public void updateFolderName(String folderId, String newName) {
-        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put(COLUMN_FOLDER_NAME, newName);
         db.update(TABLE_FOLDERS, cv, "id=?", new String[]{folderId});
@@ -489,7 +491,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * Duplicates a password entry.
      */
     public void duplicateEntry(String rowId, Integer targetFolderId) {
-        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_NAME + " WHERE id=?", new String[]{rowId});
         
         if (cursor != null && cursor.moveToFirst()) {
@@ -514,7 +516,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             if (c != null) c.close();
             cv.put(COLUMN_SORT_ORDER, sortOrder);
 
-            SQLiteDatabase writeDb = this.getWritableDatabase(KEY_ENCRYPTION);
+            SQLiteDatabase writeDb = (SQLiteDatabase) this.getWritableDatabase();
             writeDb.insert(TABLE_NAME, null, cv);
         }
     }
@@ -523,7 +525,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * Updates the sort order for a folder.
      */
     public void updateFolderSortOrder(String folderId, int newSortOrder) {
-        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put(COLUMN_SORT_ORDER, newSortOrder);
         db.update(TABLE_FOLDERS, cv, "id=?", new String[]{folderId});
@@ -533,7 +535,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * Updates the sort order for a password entry.
      */
     public void updateEntrySortOrder(String entryId, int newSortOrder) {
-        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put(COLUMN_SORT_ORDER, newSortOrder);
         db.update(TABLE_NAME, cv, "id=?", new String[]{entryId});
@@ -544,7 +546,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     @SuppressLint("Range")
     public Integer getParentFolderId(String folderId) {
-        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT " + COLUMN_PARENT_FOLDER_ID + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_ID + " = ?", new String[]{folderId});
         Integer parentId = null;
         if (cursor != null && cursor.moveToFirst()) {
@@ -561,7 +563,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     @SuppressLint("Range")
     public String getFolderName(int folderId) {
-        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT " + COLUMN_FOLDER_NAME + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_ID + " = ?", new String[]{String.valueOf(folderId)});
         String name = null;
         if (cursor != null && cursor.moveToFirst()) {
@@ -577,7 +579,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     @SuppressLint("Range")
     public void buildFolderTree(java.util.List<String[]> result, Integer parentId, int depth) {
-        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
         String query;
         String[] args;
         if (parentId == null) {
@@ -621,21 +623,23 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @throws SQLiteException If there's an error accessing the database.
      */
     public static boolean checkIfAccountAlreadyExist(Context context, String name, String email) {
-        //SQLiteDatabase db = context.getReadableDatabase(KEY_ENCRYPTION);
-        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE);
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
+        try {
+            String selection = COLUMN_NAME + " = ? AND " + COLUMN_EMAIL + " = ?";
+            String[] selectionArgs = {name, email};
 
-        String selection = COLUMN_NAME + " = ? AND " + COLUMN_EMAIL + " = ?";
-        String[] selectionArgs = {name, email};
+            Cursor cursor = db.query(TABLE_NAME, null, selection, selectionArgs, null, null, null);
 
-        Cursor cursor = db.query(TABLE_NAME, null, selection, selectionArgs, null, null, null);
+            boolean result = cursor != null && cursor.moveToFirst();
 
-        boolean result = cursor != null && cursor.moveToFirst();
+            if (cursor != null) {
+                cursor.close();
+            }
 
-        if (cursor != null) {
-            cursor.close();
+            return result;
+        } finally {
+            db.close();
         }
-
-        return result;
     }
 
 
@@ -648,9 +652,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @throws SQLiteException If there's an error accessing or updating the database.
      */
     public static void changeDBPassword(String newPassword, Context context) {
-        SQLiteDatabase.loadLibs(context);
+        System.loadLibrary("sqlcipher");
         String databasePath = context.getDatabasePath(DATABASE_NAME).getAbsolutePath();
-        SQLiteDatabase db = SQLiteDatabase.openDatabase(databasePath, KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE);
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(databasePath, KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
         db.rawExecSQL("PRAGMA rekey = '" + newPassword + "'");
         db.close();
         Toast.makeText(context, R.string.database_password_changed_successfully, Toast.LENGTH_SHORT).show();
@@ -661,7 +665,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     @SuppressLint("Range")
     public static void exportDatabaseToJson(Context context, String passwordGotFromUser) {
 
-        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE);
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
 
         JSONObject finalExportObject = new JSONObject();
         JSONArray foldersArray = new JSONArray();
@@ -786,7 +790,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 throw new JSONException("Unsupported JSON format");
             }
 
-            SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE);
+            SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
 
             if (oldFormatArray != null) {
                 // LEGACY FORMAT: Flat Array of Passwords

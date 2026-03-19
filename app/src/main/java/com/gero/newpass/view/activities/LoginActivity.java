@@ -1,6 +1,7 @@
 package com.gero.newpass.view.activities;
 
 import android.annotation.SuppressLint;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.method.HideReturnsTransformationMethod;
@@ -16,6 +17,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
@@ -28,6 +30,7 @@ import com.gero.newpass.encryption.EncryptionHelper;
 import com.gero.newpass.factory.ViewMoldelsFactory;
 import com.gero.newpass.repository.ResourceRepository;
 import com.gero.newpass.utilities.AnimationsUtility;
+import com.gero.newpass.utilities.AppIntegrityGuard;
 import com.gero.newpass.utilities.StringHelper;
 import com.gero.newpass.utilities.SystemBarColorHelper;
 import com.gero.newpass.utilities.VibrationHelper;
@@ -53,6 +56,27 @@ public class LoginActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE);
+
+        // ──── Security gate: block sideloaded / tampered installs ────
+        boolean isDebuggable = (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        AppIntegrityGuard.SecurityReport securityReport = AppIntegrityGuard.runAllChecks(this);
+        
+        if (!securityReport.passed) {
+            if (isDebuggable) {
+                // Bypass the block strictly for debug development builds
+                Log.w("AppIntegrityGuard", "(Debug Bypass) Security Check Failed: " + securityReport.failureReason);
+            } else {
+                new AlertDialog.Builder(this)
+                        .setTitle("Security Alert")
+                        .setMessage(securityReport.failureReason)
+                        .setCancelable(false)
+                        .setPositiveButton("Close", (dialog, which) -> finishAffinity())
+                        .show();
+                return; // Do NOT initialise any UI or data
+            }
+        }
+        // ──── End security gate ────
+
         ActivityLoginBinding binding = ActivityLoginBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         SystemBarColorHelper.changeBarsColor(this, R.color.background_primary);

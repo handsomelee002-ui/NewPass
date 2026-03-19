@@ -8,7 +8,10 @@ import android.text.method.PasswordTransformationMethod;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -39,6 +42,7 @@ public class LoginActivity extends AppCompatActivity {
     private ImageButton buttonRegisterOrUnlock, buttonPasswordVisibility;
     private ImageView passwordBox, bgImage;
     private TextView welcomeTextView, textViewRegisterOrUnlock;
+    private FrameLayout loadingOverlay;
     private EncryptedSharedPreferences encryptedSharedPreferences;
     private LoginViewModel loginViewModel;
     private Boolean isPasswordVisible = false;
@@ -75,6 +79,15 @@ public class LoginActivity extends AppCompatActivity {
                 finish();
             } else {
                 AnimationsUtility.errorAnimation(buttonRegisterOrUnlock, textViewRegisterOrUnlock);
+            }
+        });
+
+        // Observe loading state
+        loginViewModel.getLoadingLiveData().observe(this, isLoading -> {
+            if (isLoading) {
+                showLoading();
+            } else {
+                hideLoading();
             }
         });
 
@@ -140,6 +153,43 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
+    private void showLoading() {
+        loadingOverlay.setVisibility(View.VISIBLE);
+        AlphaAnimation fadeIn = new AlphaAnimation(0f, 1f);
+        fadeIn.setDuration(250);
+        fadeIn.setFillAfter(true);
+        loadingOverlay.startAnimation(fadeIn);
+        
+        // Disable interaction with the form
+        buttonRegisterOrUnlock.setEnabled(false);
+        passwordEntry.setEnabled(false);
+        buttonPasswordVisibility.setEnabled(false);
+    }
+
+    private void hideLoading() {
+        AlphaAnimation fadeOut = new AlphaAnimation(1f, 0f);
+        fadeOut.setDuration(200);
+        fadeOut.setFillAfter(true);
+        fadeOut.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {}
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                loadingOverlay.setVisibility(View.GONE);
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {}
+        });
+        loadingOverlay.startAnimation(fadeOut);
+        
+        // Re-enable interaction
+        buttonRegisterOrUnlock.setEnabled(true);
+        passwordEntry.setEnabled(true);
+        buttonPasswordVisibility.setEnabled(true);
+    }
+
     private void hideUI(boolean bool) {
         if (bool) {
             buttonRegisterOrUnlock.setVisibility(View.GONE);
@@ -190,6 +240,7 @@ public class LoginActivity extends AppCompatActivity {
         passwordBox = binding.backgroundInputbox2;
         bgImage = binding.logoLogin;
         buttonPasswordVisibility = binding.passwordVisibilityButton;
+        loadingOverlay = binding.loadingOverlay;
     }
 
 

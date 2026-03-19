@@ -27,20 +27,20 @@ public class MainViewModel extends ViewModel {
         dataList = new MutableLiveData<>();
         ArrayList<ListItem> localList = new ArrayList<>();
         
-        // If we are at the root, fetch folders first
-        if (folderId == null) {
-            Cursor folderCursor = myDB.readAllFolders();
-            if (folderCursor != null && folderCursor.getCount() > 0) {
-                while (folderCursor.moveToNext()) {
-                    FolderData folderData = new FolderData(
-                            folderCursor.getString(0),
-                            folderCursor.getString(1),
-                            folderCursor.getInt(2)
-                    );
-                    localList.add(folderData);
-                }
-                folderCursor.close();
+        // Always fetch sub-folders for the current folder (root or any sub-folder)
+        Cursor folderCursor = myDB.readFoldersByParent(folderId);
+        if (folderCursor != null && folderCursor.getCount() > 0) {
+            while (folderCursor.moveToNext()) {
+                Integer parentFolderId = folderCursor.isNull(2) ? null : folderCursor.getInt(2);
+                FolderData folderData = new FolderData(
+                        folderCursor.getString(0),
+                        folderCursor.getString(1),
+                        parentFolderId,
+                        folderCursor.getInt(3)
+                );
+                localList.add(folderData);
             }
+            folderCursor.close();
         }
 
         // Fetch passwords for the current folder (or root)

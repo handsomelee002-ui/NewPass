@@ -2,6 +2,8 @@ package com.gero.newpass.viewmodel;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.annotation.NonNull;
 import androidx.biometric.BiometricManager;
@@ -20,13 +22,17 @@ import com.gero.newpass.repository.ResourceRepository;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class LoginViewModel extends ViewModel {
 
     private final MutableLiveData<String> loginMessageLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> loginSuccessLiveData = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> loadingLiveData = new MutableLiveData<>(false);
     private final ResourceRepository resourceRepository;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
 
     public LoginViewModel(ResourceRepository resourceRepository) {
@@ -40,19 +46,37 @@ public class LoginViewModel extends ViewModel {
     public LiveData<Boolean> getLoginSuccessLiveData() {
         return loginSuccessLiveData;
     }
+    public LiveData<Boolean> getLoadingLiveData() {
+        return loadingLiveData;
+    }
 
 
     public void createUser(String password, EncryptedSharedPreferences sharedPreferences) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
         if (password.length() >= 4) {
-            SharedPreferences.Editor editor = sharedPreferences.edit();
-
-            String hashedPassword = HashUtils.hashPassword(password);
-            editor.putString("password", hashedPassword);
-            editor.apply();
-
-            loginSuccessLiveData.setValue(true);
-            loginMessageLiveData.setValue(resourceRepository.getString(R.string.user_created_successfully));
+            loadingLiveData.setValue(true);
+            
+            executor.execute(() -> {
+                try {
+                    String hashedPassword = HashUtils.hashPassword(password);
+                    
+                    mainHandler.post(() -> {
+                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                        editor.putString("password", hashedPassword);
+                        editor.apply();
+                        
+                        loadingLiveData.setValue(false);
+                        loginSuccessLiveData.setValue(true);
+                        loginMessageLiveData.setValue(resourceRepository.getString(R.string.user_created_successfully));
+                    });
+                } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+                    mainHandler.post(() -> {
+                        loadingLiveData.setValue(false);
+                        loginSuccessLiveData.setValue(false);
+                        loginMessageLiveData.setValue("Error creating password");
+                    });
+                }
+            });
         } else {
             loginSuccessLiveData.setValue(false);
             loginMessageLiveData.setValue(resourceRepository.getString(R.string.password_must_be_at_least_4_characters_long));
@@ -62,19 +86,36 @@ public class LoginViewModel extends ViewModel {
     public void loginUserWithPassword(String password, EncryptedSharedPreferences sharedPreferences) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
         String hashedPassword = sharedPreferences.getString("password", "");
-
-        if (HashUtils.verifyPassword(password, hashedPassword)) {
-            loginSuccessLiveData.setValue(true);
-            loginMessageLiveData.setValue(resourceRepository.getString(R.string.login_done));
-        } else {
-            loginSuccessLiveData.setValue(false);
-            loginMessageLiveData.setValue(resourceRepository.getString(R.string.access_denied));
-        }
+        
+        loadingLiveData.setValue(true);
+        
+        executor.execute(() -> {
+            try {
+                boolean verified = HashUtils.verifyPassword(password, hashedPassword);
+                
+                mainHandler.post(() -> {
+                    loadingLiveData.setValue(false);
+                    if (verified) {
+                        loginSuccessLiveData.setValue(true);
+                        loginMessageLiveData.setValue(resourceRepository.getString(R.string.login_done));
+                    } else {
+                        loginSuccessLiveData.setValue(false);
+                        loginMessageLiveData.setValue(resourceRepository.getString(R.string.access_denied));
+                    }
+                });
+            } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+                mainHandler.post(() -> {
+                    loadingLiveData.setValue(false);
+                    loginSuccessLiveData.setValue(false);
+                    loginMessageLiveData.setValue("Verification error");
+                });
+            }
+        });
     }
 
     public void loginUserWithBiometricAuth(Context context) {
-        Executor executor = ContextCompat.getMainExecutor(context);
-        BiometricPrompt biometricPrompt = new BiometricPrompt((FragmentActivity) context, executor, new BiometricPrompt.AuthenticationCallback() {
+        java.util.concurrent.Executor biometricExecutor = ContextCompat.getMainExecutor(context);
+        BiometricPrompt biometricPrompt = new BiometricPrompt((FragmentActivity) context, biometricExecutor, new BiometricPrompt.AuthenticationCallback() {
             @Override
             public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
@@ -104,5 +145,11 @@ public class LoginViewModel extends ViewModel {
                 .build();
 
         biometricPrompt.authenticate(promptInfo);
+    }
+    
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        executor.shutdown();
     }
 }

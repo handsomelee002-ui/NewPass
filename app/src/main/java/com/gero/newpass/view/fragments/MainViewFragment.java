@@ -36,6 +36,7 @@ import com.gero.newpass.model.FolderData;
 import com.gero.newpass.model.UserData;
 
 import java.util.Objects;
+import java.util.Stack;
 
 
 public class MainViewFragment extends Fragment {
@@ -49,6 +50,10 @@ public class MainViewFragment extends Fragment {
     private MainViewModel mainViewModel;
     private Integer currentFolderId = null; // null represents root
     private String currentFolderName = null;
+    
+    // Navigation stack for nested folder traversal
+    private final Stack<Integer> folderIdStack = new Stack<>();
+    private final Stack<String> folderNameStack = new Stack<>();
 
 
     @Override
@@ -69,13 +74,19 @@ public class MainViewFragment extends Fragment {
 
         populateUI();
 
-        // Handle back press to go to root level if we are inside a folder
+        // Handle back press to navigate up through folder hierarchy
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
                 if (currentFolderId != null) {
-                    currentFolderId = null;
-                    currentFolderName = null;
+                    // Navigate to parent folder
+                    if (!folderIdStack.isEmpty()) {
+                        currentFolderId = folderIdStack.pop();
+                        currentFolderName = folderNameStack.pop();
+                    } else {
+                        currentFolderId = null;
+                        currentFolderName = null;
+                    }
                     populateUI();
                 } else {
                     setEnabled(false);
@@ -167,11 +178,12 @@ public class MainViewFragment extends Fragment {
 
         if (currentFolderId != null) {
             binding.textViewCreate.setText(currentFolderName);
-            buttonAddFolder.setVisibility(View.GONE);
         } else {
             binding.textViewCreate.setText(R.string.main_saved_password);
-            buttonAddFolder.setVisibility(View.VISIBLE);
         }
+        
+        // Always show "Add Folder" button so sub-folders can be created at any level
+        buttonAddFolder.setVisibility(View.VISIBLE);
 
         mainViewModel.getDataList().observe(getViewLifecycleOwner(), dataList -> {
             ItemTouchHelper[] touchHelper = new ItemTouchHelper[1];
@@ -179,6 +191,10 @@ public class MainViewFragment extends Fragment {
             CustomAdapter customAdapter = new CustomAdapter(this.getActivity(), this.getContext(), dataList, new CustomAdapter.OnItemInteractionListener() {
                 @Override
                 public void onFolderClick(FolderData folder) {
+                    // Push current folder onto the stack before navigating into child
+                    folderIdStack.push(currentFolderId);
+                    folderNameStack.push(currentFolderName);
+                    
                     currentFolderId = Integer.parseInt(folder.getId());
                     currentFolderName = folder.getName();
                     populateUI();
@@ -281,6 +297,9 @@ public class MainViewFragment extends Fragment {
                         CustomAdapter customAdapter = new CustomAdapter(this.getActivity(), this.getContext(), searchedDataList, new CustomAdapter.OnItemInteractionListener() {
                             @Override
                             public void onFolderClick(FolderData folder) {
+                                folderIdStack.push(currentFolderId);
+                                folderNameStack.push(currentFolderName);
+                                
                                 currentFolderId = Integer.parseInt(folder.getId());
                                 currentFolderName = folder.getName();
                                 populateUI();
@@ -361,12 +380,13 @@ public class MainViewFragment extends Fragment {
 
         EditText input = dialogView.findViewById(R.id.folder_name_input);
 
-        builder.setTitle("Create Folder")
+        String title = currentFolderId != null ? "Create Sub-Folder" : "Create Folder";
+        builder.setTitle(title)
                 .setPositiveButton(R.string.ok, (dialog, which) -> {
                     String folderName = input.getText().toString().trim();
                     if (!folderName.isEmpty()) {
                         com.gero.newpass.database.DatabaseHelper db = com.gero.newpass.database.DatabaseServiceLocator.getDatabaseHelper();
-                        db.addFolder(folderName);
+                        db.addFolder(folderName, currentFolderId);
                         populateUI();
                     }
                 });
@@ -417,7 +437,7 @@ public class MainViewFragment extends Fragment {
     private void showDeleteFolderDialog(FolderData folder) {
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
         builder.setTitle("Delete Folder")
-                .setMessage("Delete all passwords inside the folder?")
+                .setMessage("Delete all passwords and sub-folders inside this folder?")
                 .setPositiveButton("Delete All", (dialog, which) -> {
                     com.gero.newpass.database.DatabaseHelper db = com.gero.newpass.database.DatabaseServiceLocator.getDatabaseHelper();
                     db.deleteFolder(folder.getId(), true);
@@ -457,7 +477,10 @@ public class MainViewFragment extends Fragment {
 
     private void showMoveToFolderDialog(UserData password) {
         com.gero.newpass.database.DatabaseHelper db = com.gero.newpass.database.DatabaseServiceLocator.getDatabaseHelper();
-        android.database.Cursor cursor = db.readAllFolders();
+        
+        // Build folder tree with indentation for nested display
+        java.util.List<String[]> folderTree = new java.util.ArrayList<>();
+        db.buildFolderTree(folderTree, null, 0);
         
         java.util.List<String> folderNames = new java.util.ArrayList<>();
         java.util.List<Integer> folderIds = new java.util.ArrayList<>();
@@ -466,14 +489,9 @@ public class MainViewFragment extends Fragment {
         folderNames.add("Root (No Folder)");
         folderIds.add(-1);
         
-        if (cursor != null && cursor.moveToFirst()) {
-            do {
-                @SuppressLint("Range") int id = cursor.getInt(cursor.getColumnIndex("id"));
-                @SuppressLint("Range") String name = cursor.getString(cursor.getColumnIndex("folder_name"));
-                folderIds.add(id);
-                folderNames.add(name);
-            } while (cursor.moveToNext());
-            cursor.close();
+        for (String[] entry : folderTree) {
+            folderNames.add(entry[0]); // display name with indentation
+            folderIds.add(Integer.parseInt(entry[1]));
         }
 
         String[] options = folderNames.toArray(new String[0]);

@@ -36,7 +36,7 @@ import java.util.Calendar;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "Password.db";
-    private static final int DATABASE_VERSION = 2; // Incremented for folders feature
+    private static final int DATABASE_VERSION = 3; // Incremented for nested folders feature
     private static final String TABLE_NAME = "my_password_record";
     private static final String COLUMN_ID = "id";
     private static final String COLUMN_NAME = "record_name";
@@ -47,6 +47,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String TABLE_FOLDERS = "folders";
     private static final String COLUMN_FOLDER_NAME = "folder_name";
+    private static final String COLUMN_PARENT_FOLDER_ID = "parent_folder_id"; // Nullable, NULL = root
     
     private static final String KEY_ENCRYPTION = StringHelper.getSharedString();
 
@@ -71,6 +72,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "CREATE TABLE " + TABLE_FOLDERS +
                         " (" + COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                         COLUMN_FOLDER_NAME + " TEXT, " +
+                        COLUMN_PARENT_FOLDER_ID + " INTEGER, " +
                         COLUMN_SORT_ORDER + " INTEGER);";
 
         db.execSQL(query);
@@ -89,6 +91,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         COLUMN_FOLDER_NAME + " TEXT, " +
                         COLUMN_SORT_ORDER + " INTEGER);";
             db.execSQL(queryFolders);
+        }
+        if (oldVersion < 3) {
+            // Add parent_folder_id column for nested folders support
+            db.execSQL("ALTER TABLE " + TABLE_FOLDERS + " ADD COLUMN " + COLUMN_PARENT_FOLDER_ID + " INTEGER;");
         }
     }
 
@@ -203,14 +209,26 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
-     * Adds a new folder.
+     * Adds a new folder with an optional parent folder ID for nesting.
      */
-    public void addFolder(String folderName) {
+    public void addFolder(String folderName, Integer parentFolderId) {
         SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
         ContentValues cv = new ContentValues();
         cv.put(COLUMN_FOLDER_NAME, folderName);
         
-        Cursor c = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS, null);
+        if (parentFolderId != null) {
+            cv.put(COLUMN_PARENT_FOLDER_ID, parentFolderId);
+        }
+        
+        // Scope sort order within the parent
+        String sortQuery;
+        if (parentFolderId == null) {
+            sortQuery = "SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL";
+        } else {
+            sortQuery = "SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = " + parentFolderId;
+        }
+        
+        Cursor c = db.rawQuery(sortQuery, null);
         int sortOrder = 0;
         if (c != null && c.moveToFirst() && !c.isNull(0)) {
             sortOrder = c.getInt(0) + 1;
@@ -222,11 +240,27 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
-     * Reads all folders.
+     * Reads all folders (used for spinners / folder pickers).
      */
     public Cursor readAllFolders() {
         SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
         return db.rawQuery("SELECT * FROM " + TABLE_FOLDERS + " ORDER BY " + COLUMN_SORT_ORDER + " ASC", null);
+    }
+
+    /**
+     * Reads folders by parent folder ID.
+     * If parentFolderId is null, returns root-level folders.
+     */
+    public Cursor readFoldersByParent(Integer parentFolderId) {
+        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        String query;
+        if (parentFolderId == null) {
+            query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            return db.rawQuery(query, null);
+        } else {
+            query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ? ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            return db.rawQuery(query, new String[]{String.valueOf(parentFolderId)});
+        }
     }
 
     /**
@@ -246,10 +280,23 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     /**
      * Deletes a folder and handles cascading logic.
-     * @param cascade If true, delete all passwords in this folder. If false, move them to root (folder_id = NULL).
+     * Recursively deletes all sub-folders first.
+     * @param cascade If true, delete all passwords in this folder and sub-folders. If false, move them to root (folder_id = NULL).
      */
     public void deleteFolder(String folderId, boolean cascade) {
         SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        
+        // First, recursively delete/handle all child sub-folders
+        Cursor childFolders = db.rawQuery("SELECT " + COLUMN_ID + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ?", new String[]{folderId});
+        if (childFolders != null && childFolders.moveToFirst()) {
+            do {
+                @SuppressLint("Range") String childId = childFolders.getString(childFolders.getColumnIndex(COLUMN_ID));
+                deleteFolder(childId, cascade); // Recursive call
+            } while (childFolders.moveToNext());
+            childFolders.close();
+        }
+        
+        // Then handle passwords in this folder
         if (cascade) {
             db.delete(TABLE_NAME, COLUMN_FOLDER_ID + "=?", new String[]{folderId});
         } else {
@@ -261,17 +308,46 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
-     * Duplicates a folder and all the passwords inside it.
+     * Duplicates a folder, all sub-folders, and all the passwords inside them recursively.
      */
     public void duplicateFolder(String folderId, String originalFolderName) {
+        duplicateFolderInternal(folderId, originalFolderName, true);
+    }
+
+    /**
+     * Internal method for recursive folder duplication.
+     * @param appendCopy If true, appends " (Copy)" to the folder name (only for the top-level call).
+     */
+    @SuppressLint("Range")
+    private void duplicateFolderInternal(String folderId, String originalFolderName, boolean appendCopy) {
         SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
         
-        // 1. Create new folder
-        String newFolderName = originalFolderName + " (Copy)";
+        // 1. Get the original folder's parent
+        Integer parentFolderId = null;
+        Cursor folderCursor = db.rawQuery("SELECT * FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_ID + " = ?", new String[]{folderId});
+        if (folderCursor != null && folderCursor.moveToFirst()) {
+            if (!folderCursor.isNull(folderCursor.getColumnIndex(COLUMN_PARENT_FOLDER_ID))) {
+                parentFolderId = folderCursor.getInt(folderCursor.getColumnIndex(COLUMN_PARENT_FOLDER_ID));
+            }
+            folderCursor.close();
+        }
+        
+        // 2. Create new folder
+        String newFolderName = appendCopy ? originalFolderName + " (Copy)" : originalFolderName;
         ContentValues cvFolder = new ContentValues();
         cvFolder.put(COLUMN_FOLDER_NAME, newFolderName);
+        if (parentFolderId != null) {
+            cvFolder.put(COLUMN_PARENT_FOLDER_ID, parentFolderId);
+        }
         
-        Cursor cSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS, null);
+        String sortQuery;
+        if (parentFolderId == null) {
+            sortQuery = "SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL";
+        } else {
+            sortQuery = "SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = " + parentFolderId;
+        }
+        
+        Cursor cSort = db.rawQuery(sortQuery, null);
         int sortOrder = 0;
         if (cSort != null && cSort.moveToFirst() && !cSort.isNull(0)) {
             sortOrder = cSort.getInt(0) + 1;
@@ -283,18 +359,18 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         
         if (newFolderId == -1) return; // Insertion failed
 
-        // 2. Duplicate all passwords inside the original folder
+        // 3. Duplicate all passwords inside the original folder
         Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{folderId});
         if (cursor != null && cursor.moveToFirst()) {
             db.beginTransaction();
             try {
                 do {
-                    @SuppressLint("Range") String passName = cursor.getString(cursor.getColumnIndex(COLUMN_NAME));
-                    @SuppressLint("Range") String passEmail = cursor.getString(cursor.getColumnIndex(COLUMN_EMAIL));
-                    @SuppressLint("Range") String passEncrypted = cursor.getString(cursor.getColumnIndex(COLUMN_PASSWORD));
+                    String passName = cursor.getString(cursor.getColumnIndex(COLUMN_NAME));
+                    String passEmail = cursor.getString(cursor.getColumnIndex(COLUMN_EMAIL));
+                    String passEncrypted = cursor.getString(cursor.getColumnIndex(COLUMN_PASSWORD));
                     
                     ContentValues cvPass = new ContentValues();
-                    cvPass.put(COLUMN_NAME, passName); // Keep exact same name for recursive items, or add Copy, let's keep exact
+                    cvPass.put(COLUMN_NAME, passName);
                     cvPass.put(COLUMN_EMAIL, passEmail);
                     cvPass.put(COLUMN_PASSWORD, passEncrypted); // already encrypted
                     cvPass.put(COLUMN_FOLDER_ID, newFolderId);
@@ -315,6 +391,86 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             }
         }
         if (cursor != null) cursor.close();
+        
+        // 4. Recursively duplicate all child sub-folders
+        Cursor childFolders = db.rawQuery("SELECT " + COLUMN_ID + ", " + COLUMN_FOLDER_NAME + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ?", new String[]{folderId});
+        if (childFolders != null && childFolders.moveToFirst()) {
+            do {
+                String childId = childFolders.getString(childFolders.getColumnIndex(COLUMN_ID));
+                String childName = childFolders.getString(childFolders.getColumnIndex(COLUMN_FOLDER_NAME));
+                // For child folders during duplication, we need to set their parent to the new folder
+                duplicateChildFolder(childId, childName, (int) newFolderId);
+            } while (childFolders.moveToNext());
+            childFolders.close();
+        }
+    }
+
+    /**
+     * Duplicates a child folder into a new parent, recursively.
+     */
+    @SuppressLint("Range")
+    private void duplicateChildFolder(String originalFolderId, String folderName, int newParentFolderId) {
+        SQLiteDatabase db = this.getWritableDatabase(KEY_ENCRYPTION);
+        
+        // Create the folder under the new parent
+        ContentValues cvFolder = new ContentValues();
+        cvFolder.put(COLUMN_FOLDER_NAME, folderName);
+        cvFolder.put(COLUMN_PARENT_FOLDER_ID, newParentFolderId);
+        
+        Cursor cSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = " + newParentFolderId, null);
+        int sortOrder = 0;
+        if (cSort != null && cSort.moveToFirst() && !cSort.isNull(0)) {
+            sortOrder = cSort.getInt(0) + 1;
+        }
+        if (cSort != null) cSort.close();
+        cvFolder.put(COLUMN_SORT_ORDER, sortOrder);
+        
+        long newFolderId = db.insert(TABLE_FOLDERS, null, cvFolder);
+        if (newFolderId == -1) return;
+        
+        // Duplicate passwords
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{originalFolderId});
+        if (cursor != null && cursor.moveToFirst()) {
+            db.beginTransaction();
+            try {
+                do {
+                    String passName = cursor.getString(cursor.getColumnIndex(COLUMN_NAME));
+                    String passEmail = cursor.getString(cursor.getColumnIndex(COLUMN_EMAIL));
+                    String passEncrypted = cursor.getString(cursor.getColumnIndex(COLUMN_PASSWORD));
+                    
+                    ContentValues cvPass = new ContentValues();
+                    cvPass.put(COLUMN_NAME, passName);
+                    cvPass.put(COLUMN_EMAIL, passEmail);
+                    cvPass.put(COLUMN_PASSWORD, passEncrypted);
+                    cvPass.put(COLUMN_FOLDER_ID, newFolderId);
+                    
+                    Cursor cPassSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = " + newFolderId, null);
+                    int passSortOrder = 0;
+                    if (cPassSort != null && cPassSort.moveToFirst() && !cPassSort.isNull(0)) {
+                        passSortOrder = cPassSort.getInt(0) + 1;
+                    }
+                    if (cPassSort != null) cPassSort.close();
+                    cvPass.put(COLUMN_SORT_ORDER, passSortOrder);
+                    
+                    db.insert(TABLE_NAME, null, cvPass);
+                } while (cursor.moveToNext());
+                db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
+            }
+        }
+        if (cursor != null) cursor.close();
+        
+        // Recursively duplicate child folders
+        Cursor childFolders = db.rawQuery("SELECT " + COLUMN_ID + ", " + COLUMN_FOLDER_NAME + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ?", new String[]{originalFolderId});
+        if (childFolders != null && childFolders.moveToFirst()) {
+            do {
+                String childId = childFolders.getString(childFolders.getColumnIndex(COLUMN_ID));
+                String childName = childFolders.getString(childFolders.getColumnIndex(COLUMN_FOLDER_NAME));
+                duplicateChildFolder(childId, childName, (int) newFolderId);
+            } while (childFolders.moveToNext());
+            childFolders.close();
+        }
     }
 
     /**
@@ -381,6 +537,77 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.update(TABLE_NAME, cv, "id=?", new String[]{entryId});
     }
 
+    /**
+     * Returns the parent folder ID for a given folder.
+     */
+    @SuppressLint("Range")
+    public Integer getParentFolderId(String folderId) {
+        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        Cursor cursor = db.rawQuery("SELECT " + COLUMN_PARENT_FOLDER_ID + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_ID + " = ?", new String[]{folderId});
+        Integer parentId = null;
+        if (cursor != null && cursor.moveToFirst()) {
+            if (!cursor.isNull(0)) {
+                parentId = cursor.getInt(0);
+            }
+            cursor.close();
+        }
+        return parentId;
+    }
+
+    /**
+     * Returns the folder name for a given folder ID.
+     */
+    @SuppressLint("Range")
+    public String getFolderName(int folderId) {
+        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        Cursor cursor = db.rawQuery("SELECT " + COLUMN_FOLDER_NAME + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_ID + " = ?", new String[]{String.valueOf(folderId)});
+        String name = null;
+        if (cursor != null && cursor.moveToFirst()) {
+            name = cursor.getString(0);
+            cursor.close();
+        }
+        return name;
+    }
+
+    /**
+     * Recursively builds a flat list of all folders with indentation for display in spinners.
+     * Each entry is a String[] with {displayName, folderId}.
+     */
+    @SuppressLint("Range")
+    public void buildFolderTree(java.util.List<String[]> result, Integer parentId, int depth) {
+        SQLiteDatabase db = this.getReadableDatabase(KEY_ENCRYPTION);
+        String query;
+        String[] args;
+        if (parentId == null) {
+            query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            args = null;
+        } else {
+            query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ? ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            args = new String[]{String.valueOf(parentId)};
+        }
+        
+        Cursor cursor = db.rawQuery(query, args);
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                String id = cursor.getString(cursor.getColumnIndex(COLUMN_ID));
+                String name = cursor.getString(cursor.getColumnIndex(COLUMN_FOLDER_NAME));
+                
+                StringBuilder indent = new StringBuilder();
+                for (int i = 0; i < depth; i++) {
+                    indent.append("    ");
+                }
+                if (depth > 0) {
+                    indent.append("└ ");
+                }
+                
+                result.add(new String[]{indent.toString() + name, id});
+                
+                // Recurse into children
+                buildFolderTree(result, Integer.parseInt(id), depth + 1);
+            } while (cursor.moveToNext());
+            cursor.close();
+        }
+    }
 
 
     /**
@@ -446,6 +673,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 try {
                     jsonObject.put(COLUMN_ID, folderCursor.getInt(folderCursor.getColumnIndex(COLUMN_ID)));
                     jsonObject.put(COLUMN_FOLDER_NAME, folderCursor.getString(folderCursor.getColumnIndex(COLUMN_FOLDER_NAME)));
+                    if (!folderCursor.isNull(folderCursor.getColumnIndex(COLUMN_PARENT_FOLDER_ID))) {
+                        jsonObject.put(COLUMN_PARENT_FOLDER_ID, folderCursor.getInt(folderCursor.getColumnIndex(COLUMN_PARENT_FOLDER_ID)));
+                    }
                     jsonObject.put(COLUMN_SORT_ORDER, folderCursor.getInt(folderCursor.getColumnIndex(COLUMN_SORT_ORDER)));
                     foldersArray.put(jsonObject);
                 } catch (JSONException e) {
@@ -571,6 +801,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 java.util.HashMap<Integer, Integer> folderIdMap = new java.util.HashMap<>();
 
                 if (foldersArray != null) {
+                    // First pass: create all folders without parent references
                     for (int i = 0; i < foldersArray.length(); i++) {
                         JSONObject fObj = foldersArray.getJSONObject(i);
                         int oldId = fObj.getInt(COLUMN_ID);
@@ -580,10 +811,29 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         ContentValues cv = new ContentValues();
                         cv.put(COLUMN_FOLDER_NAME, fName);
                         cv.put(COLUMN_SORT_ORDER, sortO);
+                        // Don't set parent yet; will fix in second pass
 
                         long newFolderId = db.insert(TABLE_FOLDERS, null, cv);
                         if (newFolderId != -1) {
                             folderIdMap.put(oldId, (int) newFolderId);
+                        }
+                    }
+                    
+                    // Second pass: update parent folder IDs using the mapping
+                    for (int i = 0; i < foldersArray.length(); i++) {
+                        JSONObject fObj = foldersArray.getJSONObject(i);
+                        int oldId = fObj.getInt(COLUMN_ID);
+                        
+                        if (fObj.has(COLUMN_PARENT_FOLDER_ID)) {
+                            int oldParentId = fObj.getInt(COLUMN_PARENT_FOLDER_ID);
+                            Integer newParentId = folderIdMap.get(oldParentId);
+                            Integer newId = folderIdMap.get(oldId);
+                            
+                            if (newParentId != null && newId != null) {
+                                ContentValues cv = new ContentValues();
+                                cv.put(COLUMN_PARENT_FOLDER_ID, newParentId);
+                                db.update(TABLE_FOLDERS, cv, "id=?", new String[]{String.valueOf(newId)});
+                            }
                         }
                     }
                 }

@@ -36,7 +36,6 @@ import com.gero.newpass.view.activities.MainViewActivity;
 import com.gero.newpass.viewmodel.UpdateViewModel;
 import com.gero.newpass.factory.ViewMoldelsFactory;
 import com.gero.newpass.database.DatabaseServiceLocator;
-import com.gero.newpass.model.FolderData;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +51,7 @@ public class UpdatePasswordFragment extends Fragment {
     private ImageButton copyButtonPassword, copyButtonEmail, backButton, buttonPasswordVisibility;
     private TextView updateButton, deleteButton, duplicateButton;
     private Boolean isPasswordVisible = false;
-    private List<FolderData> folderDataList;
+    private List<String[]> folderTreeEntries; // Each entry: {displayName, folderId}
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -108,7 +107,7 @@ public class UpdatePasswordFragment extends Fragment {
                     Integer selectedFolderId = null;
                     int selectedPosition = folderSpinner.getSelectedItemPosition();
                     if (selectedPosition > 0) { // 0 is "No Folder"
-                        selectedFolderId = Integer.parseInt(folderDataList.get(selectedPosition - 1).getId());
+                        selectedFolderId = Integer.parseInt(folderTreeEntries.get(selectedPosition - 1)[1]);
                     }
                     updateViewModel.updateEntry(entry, name, email, password, selectedFolderId);
                     VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Weak);
@@ -175,7 +174,7 @@ public class UpdatePasswordFragment extends Fragment {
                     Integer selectedFolderId = null;
                     int selectedPosition = folderSpinner.getSelectedItemPosition();
                     if (selectedPosition > 0) { // 0 is "No Folder"
-                        selectedFolderId = Integer.parseInt(folderDataList.get(selectedPosition - 1).getId());
+                        selectedFolderId = Integer.parseInt(folderTreeEntries.get(selectedPosition - 1)[1]);
                     }
                     
                     DatabaseServiceLocator.getDatabaseHelper().duplicateEntry(entry, selectedFolderId);
@@ -290,29 +289,19 @@ public class UpdatePasswordFragment extends Fragment {
     }
 
     private void setupFolderSpinner() {
-        android.database.Cursor cursor = DatabaseServiceLocator.getDatabaseHelper().readAllFolders();
-        folderDataList = new ArrayList<>();
-        if (cursor != null && cursor.getCount() > 0) {
-            while (cursor.moveToNext()) {
-                FolderData folderData = new FolderData(
-                        cursor.getString(0),
-                        cursor.getString(1),
-                        cursor.getInt(2)
-                );
-                folderDataList.add(folderData);
-            }
-            cursor.close();
-        }
+        // Build a nested folder tree with indentation
+        folderTreeEntries = new ArrayList<>();
+        DatabaseServiceLocator.getDatabaseHelper().buildFolderTree(folderTreeEntries, null, 0);
         
         List<String> folderNames = new ArrayList<>();
         folderNames.add("No Folder (Root)");
         
         int defaultSelectionIndex = 0;
 
-        for (int i = 0; i < folderDataList.size(); i++) {
-            FolderData folder = folderDataList.get(i);
-            folderNames.add(folder.getName());
-            if (folderId != null && folder.getId().equals(String.valueOf(folderId))) {
+        for (int i = 0; i < folderTreeEntries.size(); i++) {
+            String[] entry = folderTreeEntries.get(i);
+            folderNames.add(entry[0]); // display name with indentation
+            if (folderId != null && entry[1].equals(String.valueOf(folderId))) {
                 defaultSelectionIndex = i + 1;
             }
         }

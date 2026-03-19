@@ -3,11 +3,13 @@ package com.gero.newpass.model;
 public class FolderData implements ListItem {
     private String id;
     private String name;
+    private Integer parentFolderId;
     private int sortOrder;
 
-    public FolderData(String id, String name, int sortOrder) {
+    public FolderData(String id, String name, Integer parentFolderId, int sortOrder) {
         this.id = id;
         this.name = name;
+        this.parentFolderId = parentFolderId;
         this.sortOrder = sortOrder;
     }
 
@@ -25,6 +27,14 @@ public class FolderData implements ListItem {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public Integer getParentFolderId() {
+        return parentFolderId;
+    }
+
+    public void setParentFolderId(Integer parentFolderId) {
+        this.parentFolderId = parentFolderId;
     }
 
     public int getSortOrder() {

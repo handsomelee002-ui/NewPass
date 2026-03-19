@@ -15,7 +15,6 @@ import android.widget.ImageButton;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.database.Cursor;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -31,7 +30,6 @@ import com.gero.newpass.utilities.VibrationHelper;
 import com.gero.newpass.view.activities.MainViewActivity;
 import com.gero.newpass.viewmodel.AddViewModel;
 import com.gero.newpass.database.DatabaseServiceLocator;
-import com.gero.newpass.model.FolderData;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +42,7 @@ public class AddPasswordFragment extends Fragment {
     private TextView buttonAdd;
     private FragmentAddPasswordBinding binding;
     private Boolean isPasswordVisible = false;
-    private List<FolderData> folderDataList;
+    private List<String[]> folderTreeEntries; // Each entry: {displayName, folderId}
 
 
     @Override
@@ -97,7 +95,7 @@ public class AddPasswordFragment extends Fragment {
                     Integer folderId = null;
                     int selectedPosition = folderSpinner.getSelectedItemPosition();
                     if (selectedPosition > 0) { // 0 is "No Folder"
-                        folderId = Integer.parseInt(folderDataList.get(selectedPosition - 1).getId());
+                        folderId = Integer.parseInt(folderTreeEntries.get(selectedPosition - 1)[1]);
                     }
                     addViewModel.addEntry(requireContext(), name, email, password, folderId);
                     VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Strong);
@@ -142,19 +140,9 @@ public class AddPasswordFragment extends Fragment {
     }
 
     private void setupFolderSpinner() {
-        Cursor cursor = DatabaseServiceLocator.getDatabaseHelper().readAllFolders();
-        folderDataList = new ArrayList<>();
-        if (cursor != null && cursor.getCount() > 0) {
-            while (cursor.moveToNext()) {
-                FolderData folderData = new FolderData(
-                        cursor.getString(0),
-                        cursor.getString(1),
-                        cursor.getInt(2)
-                );
-                folderDataList.add(folderData);
-            }
-            cursor.close();
-        }
+        // Build a nested folder tree with indentation
+        folderTreeEntries = new ArrayList<>();
+        DatabaseServiceLocator.getDatabaseHelper().buildFolderTree(folderTreeEntries, null, 0);
         
         List<String> folderNames = new ArrayList<>();
         folderNames.add("No Folder (Root)");
@@ -166,10 +154,10 @@ public class AddPasswordFragment extends Fragment {
             if (defaultFolderId == -1) defaultFolderId = null;
         }
 
-        for (int i = 0; i < folderDataList.size(); i++) {
-            FolderData folder = folderDataList.get(i);
-            folderNames.add(folder.getName());
-            if (defaultFolderId != null && folder.getId().equals(String.valueOf(defaultFolderId))) {
+        for (int i = 0; i < folderTreeEntries.size(); i++) {
+            String[] entry = folderTreeEntries.get(i);
+            folderNames.add(entry[0]); // display name with indentation
+            if (defaultFolderId != null && entry[1].equals(String.valueOf(defaultFolderId))) {
                 defaultSelectionIndex = i + 1;
             }
         }

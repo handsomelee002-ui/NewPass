@@ -4,6 +4,8 @@ import android.content.Context;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -228,7 +230,9 @@ public class EncryptionHelper {
                 return new String(decryptedBytes, StandardCharsets.UTF_8);
             }
         } catch (Exception e) {
-            Toast.makeText(context, R.string.invalid_key, Toast.LENGTH_LONG).show();
+            new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(context, R.string.invalid_key, Toast.LENGTH_LONG).show()
+            );
             Log.e("8953467", "error during decryption " , e);
         }
         return null;

@@ -22,7 +22,7 @@
     <string name="generate_special_example">[?#%]</string>
     <string name="generate_number">Number</string>
     <string name="generate_number_example">[123]</string>
-    <string name="main_saved_password">Saved\nPassword</string>
+    <string name="main_saved_password">NewPass</string>
     <string name="main__btn_add">[add]</string>
     <string name="main_btn_generate">[generate]</string>
     <string name="main_all">All</string>

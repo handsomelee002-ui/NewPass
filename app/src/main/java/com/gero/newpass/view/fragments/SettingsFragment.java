@@ -20,6 +20,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.security.crypto.EncryptedSharedPreferences;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.gero.newpass.R;
 import com.gero.newpass.databinding.FragmentSettingsBinding;
@@ -41,11 +43,37 @@ public class SettingsFragment extends Fragment {
     private Intent intent;
     private EncryptedSharedPreferences encryptedSharedPreferences;
     static final int DARK_THEME = 0;
-    static final int GENERATE_PASSWORD = 1;
-    static final int CHANGE_PASSWORD = 2;
-    static final int EXPORT = 3;
-    static final int IMPORT = 4;
-    static final int APP_VERSION = 5;
+    static final int BIOMETRIC_LOGIN = 1;
+    static final int GENERATE_PASSWORD = 2;
+    static final int CHANGE_PASSWORD = 3;
+    static final int EXPORT = 4;
+    static final int IMPORT = 5;
+    static final int APP_VERSION = 6;
+    private ActivityResultLauncher<Intent> importDocumentLauncher;
+    private ActivityResultLauncher<Intent> exportDocumentLauncher;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        importDocumentLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        Uri fileURL = result.getData().getData();
+                        DialogHelper.showImportingDialog(requireContext(), fileURL);
+                    }
+                }
+        );
+        exportDocumentLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        Uri targetUri = result.getData().getData();
+                        DialogHelper.showExportingDialog(requireContext(), targetUri);
+                    }
+                }
+        );
+    }
 
 
     @Override
@@ -93,7 +121,13 @@ public class SettingsFragment extends Fragment {
 
                 case EXPORT:
                     VibrationHelper.vibrate(binding.getRoot(), VibrationHelper.VibrationType.Weak);
-                    DialogHelper.showExportingDialog(requireContext());
+                    Intent intentExport = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    intentExport.addCategory(Intent.CATEGORY_OPENABLE);
+                    intentExport.setType("application/json");
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", java.util.Locale.US);
+                    String timestamp = sdf.format(new java.util.Date());
+                    intentExport.putExtra(Intent.EXTRA_TITLE, "Encrypted_NewPass_DB_" + timestamp + ".json");
+                    exportDocumentLauncher.launch(intentExport);
                     break;
 
                 case IMPORT:
@@ -102,11 +136,11 @@ public class SettingsFragment extends Fragment {
                     Intent intentImport = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                     intentImport.addCategory(Intent.CATEGORY_OPENABLE);
                     intentImport.setType("*/*");
-                    startActivityForResult(intentImport, REQUEST_CODE_IMPORT_DOCUMENT);
+                    importDocumentLauncher.launch(intentImport);
                     break;
 
                 case APP_VERSION:
-                    Toast.makeText(requireContext(), "\uD83D\uDE80⚡", Toast.LENGTH_SHORT).show();
+                    com.gero.newpass.utilities.ToastHelper.showToast(requireContext(), "\uD83D\uDE80⚡", Toast.LENGTH_SHORT);
                     break;
             }
         });
@@ -115,6 +149,7 @@ public class SettingsFragment extends Fragment {
 
     private void createSettingsList(ArrayList<SettingData> arrayList) {
         arrayList.add(new SettingData(DARK_THEME, R.drawable.settings_icon_dark_theme, getString(R.string.settings_dark_theme), false, true, 1));
+        arrayList.add(new SettingData(BIOMETRIC_LOGIN, R.drawable.ic_fingerprint, "Enable Biometric Login", false, true, 2));
         arrayList.add(new SettingData(GENERATE_PASSWORD, R.drawable.btn_regenerate, "Random Password Generator"));
         arrayList.add(new SettingData(CHANGE_PASSWORD, R.drawable.settings_icon_lock, getString(R.string.settings_change_password)));
         arrayList.add(new SettingData(EXPORT, R.drawable.icon_export, getString(R.string.settings_export_db)));
@@ -138,22 +173,5 @@ public class SettingsFragment extends Fragment {
     private void initViews(FragmentSettingsBinding binding) {
         buttonBack = binding.backButton;
         listView = binding.listView;
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        Uri fileURL;
-
-        if (resultCode == Activity.RESULT_OK) {
-
-            if (requestCode == REQUEST_CODE_IMPORT_DOCUMENT) {
-                if (data != null) {
-                    fileURL = data.getData();
-
-                    DialogHelper.showImportingDialog(requireContext(), fileURL);
-                }
-            }
-        }
     }
 }

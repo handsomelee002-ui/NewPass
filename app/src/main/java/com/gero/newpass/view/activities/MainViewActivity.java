@@ -3,6 +3,7 @@ package com.gero.newpass.view.activities;
 import android.os.Bundle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
+import androidx.activity.OnBackPressedCallback;
 
 import com.gero.newpass.SharedPreferences.SharedPreferencesHelper;
 import com.gero.newpass.database.DatabaseServiceLocator;
@@ -34,6 +35,18 @@ public class MainViewActivity extends AppCompatActivity {
                     .commit();
         }
 
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (getSupportFragmentManager().getBackStackEntryCount() > 1) {
+                    getSupportFragmentManager().popBackStack();
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
+
     }
 
     @Override
@@ -53,16 +66,7 @@ public class MainViewActivity extends AppCompatActivity {
                 .commit();
     }
 
-    @Override
-    public void onBackPressed() {
-        // If the fragment stack has more than one entry, pop the back stack
-        if (getSupportFragmentManager().getBackStackEntryCount() > 1) {
-            getSupportFragmentManager().popBackStack();
-        } else {
-            // Otherwise, defer to the system default behavior
-            super.onBackPressed();
-        }
-    }
+
 
 
 }

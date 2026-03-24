@@ -1,5 +1,7 @@
 package com.gero.newpass.utilities;
 
+import com.gero.newpass.BuildConfig;
+
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -46,12 +48,12 @@ public class DialogHelper {
                     String inputNewPassword = secondInput.getText().toString();
                     String inputConfirmNewPassword = thirdInput.getText().toString();
 
-                    if (inputNewPassword.length() < 4) {
-                        Toast.makeText(context, R.string.password_must_be_at_least_4_characters_long, Toast.LENGTH_SHORT).show();
+                    if (inputNewPassword.length() < 6) {
+                        com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.password_must_be_at_least_4_characters_long, Toast.LENGTH_SHORT);
                         return;
                     }
                     if (!inputNewPassword.equals(inputConfirmNewPassword)) {
-                        Toast.makeText(context, R.string.passwords_do_not_match, Toast.LENGTH_SHORT).show();
+                        com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.passwords_do_not_match, Toast.LENGTH_SHORT);
                         return;
                     }
 
@@ -83,7 +85,7 @@ public class DialogHelper {
                                     if (loadingDialog.isShowing()) {
                                         loadingDialog.dismiss();
                                     }
-                                    Toast.makeText(context, R.string.wrong_password, Toast.LENGTH_SHORT).show();
+                                    com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.wrong_password, Toast.LENGTH_SHORT);
                                 });
                             }
                         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
@@ -91,7 +93,7 @@ public class DialogHelper {
                                 if (loadingDialog.isShowing()) {
                                     loadingDialog.dismiss();
                                 }
-                                Toast.makeText(context, "Error changing password", Toast.LENGTH_SHORT).show();
+                                com.gero.newpass.utilities.ToastHelper.showToast(context, "Error changing password", Toast.LENGTH_SHORT);
                             });
                         }
                     });
@@ -102,7 +104,7 @@ public class DialogHelper {
         dialog.show();
     }
 
-    public static void showExportingDialog(Context context) {
+    public static void showExportingDialog(Context context, Uri targetUri) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         LayoutInflater inflater = LayoutInflater.from(context);
         View dialogView = inflater.inflate(R.layout.dialog_export_or_import_db, null);
@@ -114,13 +116,13 @@ public class DialogHelper {
                     String password = input.getText().toString();
 
                     if (password.isEmpty()) {
-                        Toast.makeText(context, context.getString(R.string.password_cannot_be_empty), Toast.LENGTH_LONG).show();
+                        com.gero.newpass.utilities.ToastHelper.showToast(context, context.getString(R.string.password_cannot_be_empty), Toast.LENGTH_LONG);
                     } else {
                         // Show loading dialog and run export on background thread
                         AlertDialog loadingDialog = showLoadingDialog(context, "Exporting...");
                         
                         executor.execute(() -> {
-                            DatabaseHelper.exportDatabaseToJson(context, password);
+                            DatabaseHelper.exportDatabaseToJson(context, password, targetUri);
                             
                             mainHandler.post(() -> {
                                 if (loadingDialog.isShowing()) {
@@ -156,7 +158,7 @@ public class DialogHelper {
                         try {
                             results = DatabaseHelper.importJsonToDatabase(context, fileURL, password);
                         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-                            Log.e("8953467", "Error: ", e);
+                            if (BuildConfig.DEBUG) Log.e("DialogHelper", "Import error", e);
                         }
                         
                         final int[] finalResults = results;
@@ -168,7 +170,7 @@ public class DialogHelper {
                             if (finalResults != null) {
                                 showImportSummaryDialog(context, finalResults[0], finalResults[1], finalResults[2]);
                             } else {
-                                Toast.makeText(context, R.string.error_importing_database, Toast.LENGTH_LONG).show();
+                                com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.error_importing_database, Toast.LENGTH_LONG);
                             }
                         });
                     });

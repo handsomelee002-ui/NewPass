@@ -34,6 +34,11 @@ public class LoginViewModel extends ViewModel {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    // Brute-force protection
+    private int failedAttempts = 0;
+    private static final int MAX_ATTEMPTS_BEFORE_DELAY = 3;
+    private static final long MAX_DELAY_MS = 30_000; // 30 seconds max
+
 
     public LoginViewModel(ResourceRepository resourceRepository) {
         this.resourceRepository =  resourceRepository;
@@ -53,7 +58,7 @@ public class LoginViewModel extends ViewModel {
 
     public void createUser(String password, EncryptedSharedPreferences sharedPreferences) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
-        if (password.length() >= 4) {
+        if (password.length() >= 6) {
             loadingLiveData.setValue(true);
             
             executor.execute(() -> {
@@ -86,7 +91,21 @@ public class LoginViewModel extends ViewModel {
     public void loginUserWithPassword(String password, EncryptedSharedPreferences sharedPreferences) throws NoSuchAlgorithmException, InvalidKeySpecException {
 
         String hashedPassword = sharedPreferences.getString("password", "");
-        
+
+        // Brute-force protection: enforce delay after too many failed attempts
+        if (failedAttempts >= MAX_ATTEMPTS_BEFORE_DELAY) {
+            long delayMs = Math.min((long) Math.pow(2, failedAttempts - MAX_ATTEMPTS_BEFORE_DELAY) * 1000, MAX_DELAY_MS);
+            loadingLiveData.setValue(true);
+            mainHandler.postDelayed(() -> {
+                performLogin(password, hashedPassword);
+            }, delayMs);
+            return;
+        }
+
+        performLogin(password, hashedPassword);
+    }
+
+    private void performLogin(String password, String hashedPassword) {
         loadingLiveData.setValue(true);
         
         executor.execute(() -> {
@@ -96,11 +115,18 @@ public class LoginViewModel extends ViewModel {
                 mainHandler.post(() -> {
                     loadingLiveData.setValue(false);
                     if (verified) {
+                        failedAttempts = 0; // Reset on success
                         loginSuccessLiveData.setValue(true);
                         loginMessageLiveData.setValue(resourceRepository.getString(R.string.login_done));
                     } else {
+                        failedAttempts++;
                         loginSuccessLiveData.setValue(false);
-                        loginMessageLiveData.setValue(resourceRepository.getString(R.string.access_denied));
+                        if (failedAttempts >= MAX_ATTEMPTS_BEFORE_DELAY) {
+                            long nextDelaySeconds = Math.min((long) Math.pow(2, failedAttempts - MAX_ATTEMPTS_BEFORE_DELAY), MAX_DELAY_MS / 1000);
+                            loginMessageLiveData.setValue(resourceRepository.getString(R.string.access_denied) + " (" + nextDelaySeconds + "s wait)");
+                        } else {
+                            loginMessageLiveData.setValue(resourceRepository.getString(R.string.access_denied));
+                        }
                     }
                 });
             } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
@@ -141,7 +167,8 @@ public class LoginViewModel extends ViewModel {
         BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
                 .setTitle(context.getString(R.string.login))
                 .setSubtitle(context.getString(R.string.use_your_biometric_or_device_credentials))
-                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                .setNegativeButtonText(context.getString(R.string.cancel))
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.BIOMETRIC_WEAK)
                 .build();
 
         biometricPrompt.authenticate(promptInfo);

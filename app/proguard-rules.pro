@@ -5,17 +5,40 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# ── SQLCipher ──
+-keep class net.zetetic.** { *; }
+-dontwarn net.zetetic.**
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ── AndroidX Security (EncryptedSharedPreferences) ──
+-keep class androidx.security.crypto.** { *; }
+-dontwarn androidx.security.crypto.**
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ── AndroidX Biometric ──
+-keep class androidx.biometric.** { *; }
+-dontwarn androidx.biometric.**
+
+# ── Data models (used with Cursor column indices, reflection-sensitive) ──
+-keep class com.gero.newpass.model.** { *; }
+
+# ── daimajia animations ──
+-keep class com.daimajia.** { *; }
+-dontwarn com.daimajia.**
+
+# ── View Binding generated classes ──
+-keep class com.gero.newpass.databinding.** { *; }
+
+# ── Keep line numbers for meaningful crash stack traces ──
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# ── Strip Log calls in release builds ──
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+    public static int w(...);
+    public static int e(...);
+}
+
+# ── Fix Tink / Crypto missing annotations ──
+-dontwarn javax.annotation.**

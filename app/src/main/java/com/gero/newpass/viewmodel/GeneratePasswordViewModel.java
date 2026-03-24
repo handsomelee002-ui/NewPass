@@ -68,7 +68,6 @@ public class GeneratePasswordViewModel extends ViewModel {
         } else {
             optionsPerPosition = optionsPerPosition - UPPERCASE.length();
         }
-        Log.w("8953467", "entropy in uscita: " + optionsPerPosition);
         return optionsPerPosition;
     }
 
@@ -83,7 +82,6 @@ public class GeneratePasswordViewModel extends ViewModel {
         } else {
             optionsPerPosition = optionsPerPosition - LOWERCASE.length();
         }
-        Log.w("8953467", "entropy in uscita: " + optionsPerPosition);
         return optionsPerPosition;
     }
 
@@ -98,7 +96,6 @@ public class GeneratePasswordViewModel extends ViewModel {
         } else {
             optionsPerPosition = optionsPerPosition - NUMBERS.length();
         }
-        Log.w("8953467", "optionsPerPosition in uscita: " + optionsPerPosition);
         return optionsPerPosition;
     }
 
@@ -113,7 +110,6 @@ public class GeneratePasswordViewModel extends ViewModel {
         } else {
             optionsPerPosition = optionsPerPosition - SPECIALS.length();
         }
-        Log.w("8953467", "optionsPerPosition in uscita: " + optionsPerPosition);
         return optionsPerPosition;
     }
 

@@ -9,9 +9,13 @@ import android.text.method.PasswordTransformationMethod;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
+import android.view.animation.AlphaAnimation;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.Toast;
+
+import com.gero.newpass.BuildConfig;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -90,7 +94,7 @@ public class LoginActivity extends AppCompatActivity {
         loginViewModel = new ViewModelProvider(this, new ViewMoldelsFactory(new ResourceRepository(getApplicationContext()))).get(LoginViewModel.class);
 
         loginViewModel.getLoginMessageLiveData().observe(this, message -> {
-            // Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+             com.gero.newpass.utilities.ToastHelper.showToast(this, message, Toast.LENGTH_SHORT);
         });
 
         loginViewModel.getLoginSuccessLiveData().observe(this, success -> {
@@ -127,6 +131,25 @@ public class LoginActivity extends AppCompatActivity {
             textViewRegisterOrUnlock.setText(getString(R.string.unlock_newpass_button_text));
             welcomeTextView.setText(getString(R.string.welcome_back_newpass_text));
 
+            if (SharedPreferencesHelper.isBiometricEnabled(this)) {
+                binding.biometricButton.setVisibility(View.VISIBLE);
+                
+                binding.biometricButton.setImageResource(R.drawable.ic_fingerprint);
+                
+                binding.biometricButton.setOnClickListener(v -> {
+                    VibrationHelper.vibrate(binding.getRoot(), VibrationHelper.VibrationType.Weak);
+                    loginViewModel.loginUserWithBiometricAuth(this);
+                });
+                
+                // Automatically trigger it on start, but wait for Window Focus
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                     loginViewModel.loginUserWithBiometricAuth(this);
+                });
+            } else {
+                binding.biometricButton.setVisibility(View.GONE);
+            }
+        } else {
+            binding.biometricButton.setVisibility(View.GONE);
         }
 
         buttonPasswordVisibility.setOnClickListener(v -> {
@@ -159,12 +182,12 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void loginUser(View view) {
-        Log.d("LOGIN_VM", "Already launched before");
+        if (BuildConfig.DEBUG) Log.d("LOGIN_VM", "Already launched before");
         loginWithPassword(view);
     }
 
     private void registerUser() {
-        Log.d("LOGIN_VM", "First launch");
+        if (BuildConfig.DEBUG) Log.d("LOGIN_VM", "First launch");
 
         buttonRegisterOrUnlock.setOnClickListener(v -> {
             String passwordInput = passwordEntry.getText().toString();

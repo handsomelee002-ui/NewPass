@@ -9,6 +9,8 @@ import android.os.Looper;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.gero.newpass.BuildConfig;
+
 import androidx.security.crypto.EncryptedSharedPreferences;
 import androidx.security.crypto.MasterKey;
 
@@ -67,7 +69,7 @@ public class EncryptionHelper {
             return Base64.encodeToString(ivAndEncryptedBytes, Base64.DEFAULT);
 
         } catch (Exception e) {
-            Log.e(TAG, "Error during encryption", e);
+            if (BuildConfig.DEBUG) Log.e(TAG, "Error during encryption", e);
             return null;
         }
     }
@@ -101,7 +103,7 @@ public class EncryptionHelper {
             return new String(decryptedBytes);
 
         } catch (Exception e) {
-            Log.e(TAG, "Error during decryption", e);
+            if (BuildConfig.DEBUG) Log.e(TAG, "Error during decryption", e);
             return null;
         }
     }
@@ -125,13 +127,13 @@ public class EncryptionHelper {
                 KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                         .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                         .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                        .setKeySize(128);
+                        .setKeySize(256);
                 keyGenerator.init(builder.build());
 
                 return keyGenerator.generateKey();
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error getting or creating AES key", e);
+            if (BuildConfig.DEBUG) Log.e(TAG, "Error getting or creating AES key", e);
             return null;
         }
     }
@@ -151,7 +153,7 @@ public class EncryptionHelper {
                         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                 );
             } catch (Exception e) {
-                Log.e(TAG, "Error during creation of EncryptedSharedPreferences", e);
+                if (BuildConfig.DEBUG) Log.e(TAG, "Error during creation of EncryptedSharedPreferences", e);
             }
         }
         return encryptedSharedPreferences;
@@ -185,7 +187,7 @@ public class EncryptionHelper {
 
             return ivBase64 + ":" + saltBase64 + ":" + encryptedString;
         } catch (Exception e) {
-            Log.e("8953467", "error during encryption " , e);
+            if (BuildConfig.DEBUG) Log.e(TAG, "Error during database encryption", e);
         }
         return null;
     }
@@ -231,9 +233,9 @@ public class EncryptionHelper {
             }
         } catch (Exception e) {
             new Handler(Looper.getMainLooper()).post(() ->
-                Toast.makeText(context, R.string.invalid_key, Toast.LENGTH_LONG).show()
+                com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.invalid_key, Toast.LENGTH_LONG)
             );
-            Log.e("8953467", "error during decryption " , e);
+            if (BuildConfig.DEBUG) Log.e(TAG, "Error during database decryption", e);
         }
         return null;
     }

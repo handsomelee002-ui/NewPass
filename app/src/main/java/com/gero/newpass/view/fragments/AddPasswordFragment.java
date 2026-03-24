@@ -126,7 +126,7 @@ public class AddPasswordFragment extends Fragment {
 
         // Observe any feedback messages from the ViewModel
         addViewModel.getMessageLiveData().observe(getViewLifecycleOwner(), message ->
-                Toast.makeText(this.getContext(), message, Toast.LENGTH_SHORT).show());
+                com.gero.newpass.utilities.ToastHelper.showToast(this.getContext(), message, Toast.LENGTH_SHORT));
     }
 
     private void initViews(FragmentAddPasswordBinding binding) {

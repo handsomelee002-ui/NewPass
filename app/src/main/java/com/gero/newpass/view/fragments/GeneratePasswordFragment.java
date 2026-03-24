@@ -6,6 +6,9 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.PersistableBundle;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -96,7 +99,7 @@ public class GeneratePasswordFragment extends Fragment {
             ) {
                 copyToClipboard(textViewPassword.getText().toString());
                 VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Strong);
-                Toast.makeText(this.getContext(), R.string.generate_text_copied_to_clipboard, Toast.LENGTH_SHORT).show();
+                com.gero.newpass.utilities.ToastHelper.showToast(this.getContext(), R.string.generate_text_copied_to_clipboard, Toast.LENGTH_SHORT);
             }
         });
 
@@ -183,10 +186,25 @@ public class GeneratePasswordFragment extends Fragment {
     }
 
     private void copyToClipboard(String text) {
-
         ClipboardManager clipboardManager = (ClipboardManager) this.requireActivity().getSystemService(Context.CLIPBOARD_SERVICE);
         ClipData clipData = ClipData.newPlainText(getString(R.string.text_copied_to_clipboard), text);
+        // Mark as sensitive on API 33+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            PersistableBundle extras = new PersistableBundle();
+            extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
+            clipData.getDescription().setExtras(extras);
+        }
         clipboardManager.setPrimaryClip(clipData);
+        // Auto-clear clipboard after 30 seconds
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    clipboardManager.clearPrimaryClip();
+                } else {
+                    clipboardManager.setPrimaryClip(ClipData.newPlainText("", ""));
+                }
+            } catch (Exception ignored) {}
+        }, 30_000);
     }
 
 

@@ -30,6 +30,7 @@ public class SettingsAdapter extends ArrayAdapter<SettingData> {
     private Boolean isDarkModeSet;
     private final Activity mActivity;
     private final int DARK_THEME_SWITCH = 1;
+    private final int BIOMETRIC_LOGIN_SWITCH = 2;
 
     // Constructor
     public SettingsAdapter(@NonNull Context context, int resource, @NonNull ArrayList<SettingData> objects, Activity activity) {
@@ -82,7 +83,8 @@ public class SettingsAdapter extends ArrayAdapter<SettingData> {
 
                 if (switchID == DARK_THEME_SWITCH) {
                     imageResource = (SharedPreferencesHelper.isDarkModeSet(mContext)) ? R.drawable.btn_yes : R.drawable.btn_no;
-
+                } else if (switchID == BIOMETRIC_LOGIN_SWITCH) {
+                    imageResource = (SharedPreferencesHelper.isBiometricEnabled(mContext)) ? R.drawable.btn_yes : R.drawable.btn_no;
                 } else {
                     imageResource = R.drawable.btn_yes; // Imposta un valore predefinito nel caso in cui l'ID dello switch non sia valido
                 }
@@ -96,6 +98,11 @@ public class SettingsAdapter extends ArrayAdapter<SettingData> {
 
                         case DARK_THEME_SWITCH:
                             toggleDarkMode();
+                            break;
+                            
+                        case BIOMETRIC_LOGIN_SWITCH:
+                            toggleBiometric();
+                            holder.switchView.setImageDrawable(ContextCompat.getDrawable(mContext, SharedPreferencesHelper.isBiometricEnabled(mContext) ? R.drawable.btn_yes : R.drawable.btn_no));
                             break;
                     }
                 });
@@ -122,5 +129,24 @@ public class SettingsAdapter extends ArrayAdapter<SettingData> {
         if (mActivity instanceof MainViewActivity) {
             SharedPreferencesHelper.updateNavigationBarColor(isDarkModeSet, mActivity);
         }
+    }
+    
+    private void toggleBiometric() {
+        boolean isEnabled = SharedPreferencesHelper.isBiometricEnabled(mContext);
+        
+        if (!isEnabled) {
+            androidx.biometric.BiometricManager biometricManager = androidx.biometric.BiometricManager.from(mContext);
+            int canAuthenticate = biometricManager.canAuthenticate(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG | androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK);
+            if (canAuthenticate != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
+                com.gero.newpass.utilities.ToastHelper.showToast(mContext, "Your device OS doesn't have compatible biometrics enrolled for third-party apps.", android.widget.Toast.LENGTH_LONG);
+                return;
+            } else {
+                com.gero.newpass.utilities.ToastHelper.showToast(mContext, "Biometrics successfully enabled for NewPass!", android.widget.Toast.LENGTH_SHORT);
+            }
+        } else {
+            com.gero.newpass.utilities.ToastHelper.showToast(mContext, "Biometrics disabled.", android.widget.Toast.LENGTH_SHORT);
+        }
+        
+        SharedPreferencesHelper.setBiometricEnabled(mContext, !isEnabled);
     }
 }

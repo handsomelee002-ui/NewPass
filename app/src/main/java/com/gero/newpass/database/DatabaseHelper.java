@@ -1,5 +1,6 @@
 package com.gero.newpass.database;
 
+import com.gero.newpass.BuildConfig;
 import android.annotation.SuppressLint;
 import android.content.ContentValues;
 import android.content.Context;
@@ -169,9 +170,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         String query = "SELECT * " +
                 "FROM " + TABLE_NAME +
-                " WHERE " + COLUMN_NAME + " LIKE '%" + itemToSearch.toLowerCase(java.util.Locale.ROOT) + "%'";
+                " WHERE " + COLUMN_NAME + " LIKE ?";
 
-        return db.rawQuery(query, null);
+        return db.rawQuery(query, new String[]{"%" + itemToSearch.toLowerCase(java.util.Locale.ROOT) + "%"});
     }
 
 
@@ -655,15 +656,17 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         System.loadLibrary("sqlcipher");
         String databasePath = context.getDatabasePath(DATABASE_NAME).getAbsolutePath();
         SQLiteDatabase db = SQLiteDatabase.openDatabase(databasePath, KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
-        db.rawExecSQL("PRAGMA rekey = '" + newPassword + "'");
+        // Sanitize: escape single quotes to prevent PRAGMA injection
+        String sanitizedPassword = newPassword.replace("'", "''");
+        db.rawExecSQL("PRAGMA rekey = '" + sanitizedPassword + "'");
         db.close();
-        Toast.makeText(context, R.string.database_password_changed_successfully, Toast.LENGTH_SHORT).show();
+        com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.database_password_changed_successfully, Toast.LENGTH_SHORT);
     }
 
 
 
     @SuppressLint("Range")
-    public static void exportDatabaseToJson(Context context, String passwordGotFromUser) {
+    public static void exportDatabaseToJson(Context context, String passwordGotFromUser, Uri targetUri) {
 
         SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
 
@@ -685,7 +688,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     jsonObject.put(COLUMN_SORT_ORDER, folderCursor.getInt(folderCursor.getColumnIndex(COLUMN_SORT_ORDER)));
                     foldersArray.put(jsonObject);
                 } catch (JSONException e) {
-                    Log.e("8953467", "Error converting folder row to JSON", e);
+                    if (BuildConfig.DEBUG) Log.e("DatabaseHelper", "Error converting folder row to JSON", e);
                 }
             } while (folderCursor.moveToNext());
             folderCursor.close();
@@ -709,7 +712,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
                     passwordsArray.put(jsonObject);
                 } catch (JSONException e) {
-                    Log.e("8953467", "Error converting password row to JSON", e);
+                    if (BuildConfig.DEBUG) Log.e("DatabaseHelper", "Error converting password row to JSON", e);
                 }
             } while (passwordCursor.moveToNext());
             passwordCursor.close();
@@ -719,45 +722,29 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             finalExportObject.put("folders", foldersArray);
             finalExportObject.put("passwords", passwordsArray);
         } catch (JSONException e) {
-            Log.e("8953467", "Error assembling final export JSON object", e);
+            if (BuildConfig.DEBUG) Log.e("DatabaseHelper", "Error assembling final export JSON object", e);
         }
 
         try {
-            File exportDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-            if (!exportDir.exists()) {
-                exportDir.mkdirs();
-            }
-            
-            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", java.util.Locale.US);
-            String timestamp = sdf.format(new java.util.Date());
-
-            File file = new File(exportDir, "Encrypted_NewPass_DB_" + timestamp + ".json");
-
-            if (file.exists()) {
-                Log.d("8953467", "file already exists");
-            } else {
-                Log.d("8953467", "file not exists");
-            }
-
             String jsonString = finalExportObject.toString();
             String jsonEncryptedString = EncryptionHelper.encryptDatabase(jsonString, passwordGotFromUser);
 
-            FileWriter fileWriter = new FileWriter(file);
+            try (java.io.OutputStream outputStream = context.getContentResolver().openOutputStream(targetUri);
+                 java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(outputStream)) {
+                writer.write(jsonEncryptedString);
+                writer.flush();
+            }
 
-            fileWriter.write(jsonEncryptedString);
-            fileWriter.flush();
-            fileWriter.close();
-
-            Log.d("8953467", "Database exported to JSON successfully");
+            if (BuildConfig.DEBUG) Log.d("DatabaseHelper", "Database exported to JSON successfully");
             new Handler(Looper.getMainLooper()).post(() ->
-                Toast.makeText(context, context.getString(R.string.database_successfully_exported_to) + " " + Environment.DIRECTORY_DOWNLOADS, Toast.LENGTH_LONG).show()
+                com.gero.newpass.utilities.ToastHelper.showToast(context, "Database exported successfully", Toast.LENGTH_LONG)
             );
 
 
         } catch (IOException e) {
-            Log.e("8953467", "Error: ", e);
+            if (BuildConfig.DEBUG) Log.e("DatabaseHelper", "Export error", e);
             new Handler(Looper.getMainLooper()).post(() ->
-                Toast.makeText(context, R.string.export_failed, Toast.LENGTH_LONG).show()
+                com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.export_failed, Toast.LENGTH_LONG)
             );
 
         } finally {
@@ -770,7 +757,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         String jsonDecryptedString = EncryptionHelper.decryptDatabase(context, jsonEncryptedString, passwordGotFromUser);
 
         if (jsonDecryptedString == null) {
-            Log.e("8953467", "Error reading JSON file");
+            if (BuildConfig.DEBUG) Log.e("DatabaseHelper", "Error reading JSON file");
             return null;
         }
 
@@ -847,7 +834,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                             if (existingFolderId != null) {
                                 // Merge: map imported folder to existing folder
                                 folderIdMap.put(oldId, existingFolderId);
-                                Log.d("8953467", "Folder merged: " + fName + " → existing id " + existingFolderId);
                             } else {
                                 // Create new folder
                                 ContentValues cv = new ContentValues();
@@ -859,7 +845,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                                 long newFolderId = db.insert(TABLE_FOLDERS, null, cv);
                                 if (newFolderId != -1) {
                                     folderIdMap.put(oldId, (int) newFolderId);
-                                    Log.d("8953467", "Folder created: " + fName + " → new id " + newFolderId);
                                 }
                             }
 
@@ -893,14 +878,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             }
             
             db.close();
-            Log.d("8953467", "Data imported from JSON to database successfully");
             return counters;
 
         } catch (JSONException e) {
             new Handler(Looper.getMainLooper()).post(() ->
-                Toast.makeText(context, R.string.error_importing_database, Toast.LENGTH_LONG).show()
+                com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.error_importing_database, Toast.LENGTH_LONG)
             );
-            Log.e("8953467", "Error parsing JSON", e);
+            if (BuildConfig.DEBUG) Log.e("DatabaseHelper", "Error parsing JSON", e);
             return null;
         }
     }
@@ -943,11 +927,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
             if (exactMatch) {
                 // Case 1: Exact duplicate — skip
-                Log.d("8953467", "Import skipped (exact duplicate): " + name + " / " + email);
                 return IMPORT_IGNORED;
             } else {
                 // Case 2: Same title+username but different password — import with (Conflict)
-                Log.d("8953467", "Import conflict: " + name + " / " + email + " — appending (Conflict)");
                 addEntry(context, name + " (Conflict)", email, password, folderId);
                 return IMPORT_CONFLICT;
             }
@@ -1006,7 +988,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     @SuppressLint("Range") int folderId = cursor.getInt(cursor.getColumnIndex("id"));
                     db.delete(TABLE_FOLDERS, "id=?", new String[]{String.valueOf(folderId)});
                     removed = true;
-                    Log.d("8953467", "Removed empty folder id: " + folderId);
                 } while (cursor.moveToNext());
                 cursor.close();
             }
@@ -1028,9 +1009,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             }
         } catch (IOException e) {
             new Handler(Looper.getMainLooper()).post(() ->
-                Toast.makeText(context, R.string.error_importing_database, Toast.LENGTH_LONG).show()
+                com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.error_importing_database, Toast.LENGTH_LONG)
             );
-            Log.e("8953467", "Error reading JSON file", e);
+            if (BuildConfig.DEBUG) Log.e("DatabaseHelper", "Error reading JSON file", e);
         }
         return null;
     }

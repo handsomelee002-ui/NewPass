@@ -82,7 +82,7 @@ public final class AppIntegrityGuard {
                             service.getClass().getMethod("isAdvancedProtectionEnabled");
                     boolean enabled = (boolean) isEnabled.invoke(service);
 
-                    Log.d(TAG, "Advanced Protection enabled: " + enabled);
+                    if (com.gero.newpass.BuildConfig.DEBUG) Log.d(TAG, "Advanced Protection enabled: " + enabled);
 
                     if (enabled) {
                         // Register callback to monitor toggle changes while app is alive
@@ -91,10 +91,10 @@ public final class AppIntegrityGuard {
                 }
             } catch (Exception e) {
                 // Reflection may fail on some OEM ROMs — not a hard failure
-                Log.w(TAG, "Advanced Protection check unavailable", e);
+                if (com.gero.newpass.BuildConfig.DEBUG) Log.w(TAG, "Advanced Protection check unavailable", e);
             }
         } else {
-            Log.d(TAG, "Advanced Protection check skipped (API " +
+            if (com.gero.newpass.BuildConfig.DEBUG) Log.d(TAG, "Advanced Protection check skipped (API " +
                     Build.VERSION.SDK_INT + " < 36)");
         }
         return SecurityReport.pass();
@@ -114,18 +114,18 @@ public final class AppIntegrityGuard {
 
             java.util.concurrent.Executor mainExecutor = context.getMainExecutor();
             java.util.function.Consumer<Boolean> callback = isEnabled -> {
-                Log.i(TAG, "Advanced Protection toggled — now " +
+                if (com.gero.newpass.BuildConfig.DEBUG) Log.i(TAG, "Advanced Protection toggled — now " +
                         (isEnabled ? "ENABLED" : "DISABLED"));
                 if (!isEnabled) {
-                    Log.w(TAG, "User disabled Advanced Protection while app is running");
+                    if (com.gero.newpass.BuildConfig.DEBUG) Log.w(TAG, "User disabled Advanced Protection while app is running");
                     // You can take further action here, e.g. show a warning dialog
                 }
             };
 
             registerMethod.invoke(service, mainExecutor, callback);
-            Log.d(TAG, "Registered Advanced Protection callback");
+            if (com.gero.newpass.BuildConfig.DEBUG) Log.d(TAG, "Registered Advanced Protection callback");
         } catch (Exception e) {
-            Log.w(TAG, "Could not register Advanced Protection callback", e);
+            if (com.gero.newpass.BuildConfig.DEBUG) Log.w(TAG, "Could not register Advanced Protection callback", e);
         }
     }
 
@@ -144,11 +144,11 @@ public final class AppIntegrityGuard {
                         "The app may have been tampered with.");
             }
 
-            Log.d(TAG, "Current signature SHA-256: " + currentFingerprint);
+            if (com.gero.newpass.BuildConfig.DEBUG) Log.d(TAG, "Current signature SHA-256: " + currentFingerprint);
 
             // Skip check if placeholder is still in place (development convenience)
             if (OFFICIAL_SIGNATURE_SHA256.equals("REPLACE_ME_WITH_YOUR_RELEASE_FINGERPRINT")) {
-                Log.w(TAG, "⚠ Signature check SKIPPED — official fingerprint not configured.");
+                if (com.gero.newpass.BuildConfig.DEBUG) Log.w(TAG, "⚠ Signature check SKIPPED — official fingerprint not configured.");
                 return SecurityReport.pass();
             }
 
@@ -161,7 +161,7 @@ public final class AppIntegrityGuard {
             return SecurityReport.pass();
 
         } catch (Exception e) {
-            Log.e(TAG, "Signature verification error", e);
+            if (com.gero.newpass.BuildConfig.DEBUG) Log.e(TAG, "Signature verification error", e);
             return SecurityReport.fail(2,
                     "Signature verification failed unexpectedly.");
         }
@@ -204,7 +204,7 @@ public final class AppIntegrityGuard {
             return sha256Hex(signature.toByteArray());
 
         } catch (PackageManager.NameNotFoundException | NoSuchAlgorithmException e) {
-            Log.e(TAG, "Failed to get signature fingerprint", e);
+            if (com.gero.newpass.BuildConfig.DEBUG) Log.e(TAG, "Failed to get signature fingerprint", e);
             return null;
         }
     }

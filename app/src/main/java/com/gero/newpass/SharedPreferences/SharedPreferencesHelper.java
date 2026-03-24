@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.Window;
 
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.gero.newpass.R;
 
@@ -16,10 +17,21 @@ public class SharedPreferencesHelper {
 
     public static String DARK_MODE_FLAG = "isDarkModeOn";
     public static String SHARED_PREF_FLAG = "SharedPref";
+    public static String IS_BIOMETRIC_ENABLED = "is_biometric_enabled";
 
     //Obtain shared preferences
     public static synchronized SharedPreferences getSharedPreferences(Context context) {
         return context.getSharedPreferences(SHARED_PREF_FLAG, Context.MODE_PRIVATE);
+    }
+    
+    public static boolean isBiometricEnabled(Context context) {
+        SharedPreferences sharedPreferences = getSharedPreferences(context);
+        return sharedPreferences.getBoolean(IS_BIOMETRIC_ENABLED, false);
+    }
+    
+    public static void setBiometricEnabled(Context context, boolean isEnabled) {
+        SharedPreferences sharedPreferences = getSharedPreferences(context);
+        sharedPreferences.edit().putBoolean(IS_BIOMETRIC_ENABLED, isEnabled).apply();
     }
 
 
@@ -84,12 +96,15 @@ public class SharedPreferencesHelper {
         if (isDarkMode) {
             // Set dark color for navigation bar
             window.setNavigationBarColor(activity.getResources().getColor(R.color.navigationbar_dark_mode));
+            WindowInsetsControllerCompat windowInsetsController = new WindowInsetsControllerCompat(window, window.getDecorView());
+            windowInsetsController.setAppearanceLightNavigationBars(false);
         } else {
             // Set light color for navigation bar
             window.setNavigationBarColor(activity.getResources().getColor(R.color.navigationbar_light_mode));
             // Additionally, if your navigation bar icons are not visible against the light background, you can make them dark:
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+                WindowInsetsControllerCompat windowInsetsController = new WindowInsetsControllerCompat(window, window.getDecorView());
+                windowInsetsController.setAppearanceLightNavigationBars(true);
             }
         }
     }

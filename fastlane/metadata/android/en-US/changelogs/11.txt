@@ -1,5 +1,0 @@
-Added
-- Added an icon and a function to reveal the password
-
-Additions
-- Removed the MANAGE_EXTERNAL_STORAGE permission

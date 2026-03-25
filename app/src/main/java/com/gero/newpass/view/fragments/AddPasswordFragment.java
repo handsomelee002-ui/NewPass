@@ -129,6 +129,12 @@ public class AddPasswordFragment extends Fragment {
                 com.gero.newpass.utilities.ToastHelper.showToast(this.getContext(), message, Toast.LENGTH_SHORT));
     }
 
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        binding = null;
+    }
+
     private void initViews(FragmentAddPasswordBinding binding) {
         nameInput = binding.nameInput;
         emailInput = binding.emailInput;

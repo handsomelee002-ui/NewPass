@@ -31,6 +31,16 @@ public class DialogHelper {
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    private static void dismissSafe(AlertDialog dialog, Context context) {
+        if (dialog != null && dialog.isShowing()) {
+            if (context instanceof android.app.Activity) {
+                android.app.Activity activity = (android.app.Activity) context;
+                if (activity.isFinishing() || activity.isDestroyed()) return;
+            }
+            try { dialog.dismiss(); } catch (Exception ignored) {}
+        }
+    }
+
     public static void showChangePasswordDialog(Context context, EncryptedSharedPreferences encryptedSharedPreferences) {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         LayoutInflater inflater = LayoutInflater.from(context);
@@ -76,23 +86,17 @@ public class DialogHelper {
 
                                     DatabaseHelper.changeDBPassword(hashedPassword, context);
 
-                                    if (loadingDialog.isShowing()) {
-                                        loadingDialog.dismiss();
-                                    }
+                                    dismissSafe(loadingDialog, context);
                                 });
                             } else {
                                 mainHandler.post(() -> {
-                                    if (loadingDialog.isShowing()) {
-                                        loadingDialog.dismiss();
-                                    }
+                                    dismissSafe(loadingDialog, context);
                                     com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.wrong_password, Toast.LENGTH_SHORT);
                                 });
                             }
                         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
                             mainHandler.post(() -> {
-                                if (loadingDialog.isShowing()) {
-                                    loadingDialog.dismiss();
-                                }
+                                dismissSafe(loadingDialog, context);
                                 com.gero.newpass.utilities.ToastHelper.showToast(context, "Error changing password", Toast.LENGTH_SHORT);
                             });
                         }
@@ -125,9 +129,7 @@ public class DialogHelper {
                             DatabaseHelper.exportDatabaseToJson(context, password, targetUri);
                             
                             mainHandler.post(() -> {
-                                if (loadingDialog.isShowing()) {
-                                    loadingDialog.dismiss();
-                                }
+                                dismissSafe(loadingDialog, context);
                             });
                         });
                     }
@@ -163,12 +165,12 @@ public class DialogHelper {
                         
                         final int[] finalResults = results;
                         mainHandler.post(() -> {
-                            if (loadingDialog.isShowing()) {
-                                loadingDialog.dismiss();
-                            }
+                            dismissSafe(loadingDialog, context);
                             
                             if (finalResults != null) {
-                                showImportSummaryDialog(context, finalResults[0], finalResults[1], finalResults[2]);
+                                if (context instanceof android.app.Activity && !((android.app.Activity)context).isFinishing() && !((android.app.Activity)context).isDestroyed()) {
+                                    showImportSummaryDialog(context, finalResults[0], finalResults[1], finalResults[2]);
+                                }
                             } else {
                                 com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.error_importing_database, Toast.LENGTH_LONG);
                             }

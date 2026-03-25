@@ -138,12 +138,12 @@ public class LoginActivity extends AppCompatActivity {
                 
                 binding.biometricButton.setOnClickListener(v -> {
                     VibrationHelper.vibrate(binding.getRoot(), VibrationHelper.VibrationType.Weak);
-                    loginViewModel.loginUserWithBiometricAuth(this);
+                    loginViewModel.loginUserWithBiometricAuth(this, encryptedSharedPreferences);
                 });
                 
                 // Automatically trigger it on start, but wait for Window Focus
                 new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                     loginViewModel.loginUserWithBiometricAuth(this);
+                     loginViewModel.loginUserWithBiometricAuth(this, encryptedSharedPreferences);
                 });
             } else {
                 binding.biometricButton.setVisibility(View.GONE);

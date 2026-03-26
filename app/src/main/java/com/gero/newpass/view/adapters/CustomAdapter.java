@@ -24,6 +24,7 @@ import com.gero.newpass.model.ListItem;
 import com.gero.newpass.model.UserData;
 import com.gero.newpass.model.FolderData;
 import com.gero.newpass.utilities.VibrationHelper;
+import com.gero.newpass.utilities.PasswordStrengthHelper;
 import com.gero.newpass.view.fragments.UpdatePasswordFragment;
 
 import java.util.List;
@@ -135,6 +136,7 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
                 args.putString("name", userData.getName());
                 args.putString("email", userData.getEmail());
                 args.putString("password", userData.getPassword());
+                args.putLong("last_update", userData.getLastUpdate());
                 if (userData.getFolderId() != null) {
                     args.putInt("folderId", userData.getFolderId());
                 } else {

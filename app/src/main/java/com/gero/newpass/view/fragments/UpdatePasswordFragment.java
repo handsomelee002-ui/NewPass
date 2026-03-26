@@ -21,6 +21,12 @@ import android.widget.ImageButton;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.widget.ProgressBar;
+import android.content.res.ColorStateList;
+
+import com.gero.newpass.utilities.PasswordStrengthHelper;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -51,11 +57,14 @@ public class UpdatePasswordFragment extends Fragment {
     private EditText name_input, email_input, passwordInput;
     private Spinner folderSpinner;
     private String entry, name, email, password;
+    private long lastUpdate;
     private Integer folderId;
     private ImageButton copyButtonPassword, copyButtonEmail, backButton, buttonPasswordVisibility;
     private TextView updateButton, deleteButton, duplicateButton;
     private Boolean isPasswordVisible = false;
     private List<String[]> folderTreeEntries; // Each entry: {displayName, folderId}
+    private TextView strengthLabel;
+    private ProgressBar strengthProgress;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -83,6 +92,20 @@ public class UpdatePasswordFragment extends Fragment {
         initViews(binding);
         setupFolderSpinner();
 
+        strengthLabel = binding.getRoot().findViewById(R.id.strength_label);
+        strengthProgress = binding.getRoot().findViewById(R.id.strength_progress);
+
+        passwordInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                updateStrengthMeter(s.toString());
+            }
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
         Activity activity = this.getActivity();
 
         String decryptedPassword = EncryptionHelper.decrypt(password);
@@ -90,6 +113,12 @@ public class UpdatePasswordFragment extends Fragment {
         name_input.setText(name);
         email_input.setText(email);
         passwordInput.setText(decryptedPassword);
+
+        TextView lastUpdateTxt = binding.getRoot().findViewById(R.id.last_update_txt);
+        if (lastUpdateTxt != null && lastUpdate > 0) {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("MMM dd, yyyy  HH:mm", java.util.Locale.getDefault());
+            lastUpdateTxt.setText("Last Updated: " + sdf.format(new java.util.Date(lastUpdate)));
+        }
 
         // Observe any feedback messages from the ViewModel
         updateViewModel.getMessageLiveData().observe(getViewLifecycleOwner(), message ->
@@ -254,6 +283,7 @@ public class UpdatePasswordFragment extends Fragment {
             name = args.getString("name");
             email = args.getString("email");
             password = args.getString("password");
+            lastUpdate = args.getLong("last_update", 0L);
             
             if (args.containsKey("folderId")) {
                 int fId = args.getInt("folderId");
@@ -293,6 +323,25 @@ public class UpdatePasswordFragment extends Fragment {
         copyButtonPassword = binding.copyButtonPassword;
         copyButtonEmail = binding.copyButtonEmail;
         buttonPasswordVisibility = binding.passwordVisibilityButton;
+    }
+
+    private void updateStrengthMeter(String pass) {
+        if (strengthLabel == null || strengthProgress == null) return;
+        PasswordStrengthHelper.Strength strength = PasswordStrengthHelper.calculateStrength(pass);
+        strengthLabel.setText("Strength: " + strength.label);
+        strengthProgress.setProgressTintList(ColorStateList.valueOf(strength.color));
+
+        if (pass.isEmpty()) {
+            strengthProgress.setProgress(0);
+        } else if (strength == PasswordStrengthHelper.Strength.WEAK) {
+            strengthProgress.setProgress(25);
+        } else if (strength == PasswordStrengthHelper.Strength.FAIR) {
+            strengthProgress.setProgress(50);
+        } else if (strength == PasswordStrengthHelper.Strength.GOOD) {
+            strengthProgress.setProgress(75);
+        } else {
+            strengthProgress.setProgress(100);
+        }
     }
 
     private void setupFolderSpinner() {

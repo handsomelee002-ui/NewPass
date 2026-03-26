@@ -54,7 +54,8 @@ public class MainViewModel extends ViewModel {
                         cursor.getString(2),
                         cursor.getString(3),
                         cursor.isNull(4) ? null : cursor.getInt(4),
-                        cursor.getInt(5)
+                        cursor.getInt(5),
+                        cursor.isNull(6) ? System.currentTimeMillis() : cursor.getLong(6)
                 );
                 localList.add(userData);
             }
@@ -78,7 +79,8 @@ public class MainViewModel extends ViewModel {
                         cursor.getString(2),
                         cursor.getString(3),
                         cursor.isNull(4) ? null : cursor.getInt(4),
-                        cursor.getInt(5)
+                        cursor.getInt(5),
+                        cursor.isNull(6) ? System.currentTimeMillis() : cursor.getLong(6)
                 );
 
                 localList.add(userData);

@@ -39,7 +39,7 @@ import java.util.Calendar;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "Password.db";
-    private static final int DATABASE_VERSION = 3; // Incremented for nested folders feature
+    private static final int DATABASE_VERSION = 4; // Incremented for last_update feature
     private static final String TABLE_NAME = "my_password_record";
     private static final String COLUMN_ID = "id";
     private static final String COLUMN_NAME = "record_name";
@@ -47,6 +47,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String COLUMN_PASSWORD = "record_password";
     private static final String COLUMN_FOLDER_ID = "folder_id"; // Nullable foreign key to folders table
     private static final String COLUMN_SORT_ORDER = "sort_order"; // For manual re-ordering
+    public static final String COLUMN_LAST_UPDATE = "last_update"; // Age of password
 
     private static final String TABLE_FOLDERS = "folders";
     private static final String COLUMN_FOLDER_NAME = "folder_name";
@@ -69,7 +70,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         COLUMN_EMAIL + " TEXT, " +
                         COLUMN_PASSWORD + " TEXT, " +
                         COLUMN_FOLDER_ID + " INTEGER, " +
-                        COLUMN_SORT_ORDER + " INTEGER);";
+                        COLUMN_SORT_ORDER + " INTEGER, " +
+                        COLUMN_LAST_UPDATE + " INTEGER);";
 
         String queryFolders =
                 "CREATE TABLE " + TABLE_FOLDERS +
@@ -99,6 +101,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             // Add parent_folder_id column for nested folders support
             db.execSQL("ALTER TABLE " + TABLE_FOLDERS + " ADD COLUMN " + COLUMN_PARENT_FOLDER_ID + " INTEGER;");
         }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE " + TABLE_NAME + " ADD COLUMN " + COLUMN_LAST_UPDATE + " INTEGER;");
+            long currentTime = System.currentTimeMillis();
+            db.execSQL("UPDATE " + TABLE_NAME + " SET " + COLUMN_LAST_UPDATE + " = " + currentTime + ";");
+        }
     }
 
 
@@ -112,6 +119,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @param password The password of the entry (it will be encrypted before being inserted into the database)
      */
     public static void addEntry(Context context, String name, String email, String password, Integer folderId) {
+        addEntry(context, name, email, password, folderId, System.currentTimeMillis());
+    }
+
+    public static void addEntry(Context context, String name, String email, String password, Integer folderId, long lastUpdate) {
         SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
         try {
             ContentValues cv = new ContentValues();
@@ -121,6 +132,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             cv.put(COLUMN_NAME, name);
             cv.put(COLUMN_EMAIL, email);
             cv.put(COLUMN_PASSWORD, encryptedPassword);
+            cv.put(COLUMN_LAST_UPDATE, lastUpdate);
             
             if (folderId != null) {
                 cv.put(COLUMN_FOLDER_ID, folderId);
@@ -191,6 +203,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         cv.put(COLUMN_NAME, name);
         cv.put(COLUMN_EMAIL, email);
         cv.put(COLUMN_PASSWORD, password);
+        cv.put(COLUMN_LAST_UPDATE, System.currentTimeMillis());
         if (folderId != null) {
             cv.put(COLUMN_FOLDER_ID, folderId);
         } else {
@@ -377,7 +390,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     ContentValues cvPass = new ContentValues();
                     cvPass.put(COLUMN_NAME, passName);
                     cvPass.put(COLUMN_EMAIL, passEmail);
-                    cvPass.put(COLUMN_PASSWORD, passEncrypted); // already encrypted
+                    cvPass.put(COLUMN_PASSWORD, passEncrypted);
+                    cvPass.put(COLUMN_LAST_UPDATE, System.currentTimeMillis()); // already encrypted
                     cvPass.put(COLUMN_FOLDER_ID, newFolderId);
                     
                     Cursor cPassSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = " + newFolderId, null);
@@ -447,6 +461,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     cvPass.put(COLUMN_NAME, passName);
                     cvPass.put(COLUMN_EMAIL, passEmail);
                     cvPass.put(COLUMN_PASSWORD, passEncrypted);
+                    cvPass.put(COLUMN_LAST_UPDATE, System.currentTimeMillis());
                     cvPass.put(COLUMN_FOLDER_ID, newFolderId);
                     
                     Cursor cPassSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = " + newFolderId, null);
@@ -505,6 +520,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             cv.put(COLUMN_NAME, name);
             cv.put(COLUMN_EMAIL, email);
             cv.put(COLUMN_PASSWORD, pass); // Store raw from db, which is encrypted
+            cv.put(COLUMN_LAST_UPDATE, System.currentTimeMillis());
             if (targetFolderId != null) {
                 cv.put(COLUMN_FOLDER_ID, targetFolderId);
             }
@@ -709,6 +725,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         jsonObject.put(COLUMN_FOLDER_ID, passwordCursor.getInt(passwordCursor.getColumnIndex(COLUMN_FOLDER_ID)));
                     }
                     jsonObject.put(COLUMN_SORT_ORDER, passwordCursor.getInt(passwordCursor.getColumnIndex(COLUMN_SORT_ORDER)));
+                    
+                    if (!passwordCursor.isNull(passwordCursor.getColumnIndex(COLUMN_LAST_UPDATE))) {
+                        jsonObject.put(COLUMN_LAST_UPDATE, passwordCursor.getLong(passwordCursor.getColumnIndex(COLUMN_LAST_UPDATE)));
+                    } else {
+                        jsonObject.put(COLUMN_LAST_UPDATE, System.currentTimeMillis());
+                    }
 
                     passwordsArray.put(jsonObject);
                 } catch (JSONException e) {
@@ -786,8 +808,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     String name = jsonObject.getString(COLUMN_NAME);
                     String email = jsonObject.getString(COLUMN_EMAIL);
                     String password = jsonObject.getString(COLUMN_PASSWORD);
+                    long lastUpdate = jsonObject.optLong(COLUMN_LAST_UPDATE, System.currentTimeMillis());
 
-                    int result = importPasswordWithConflictCheck(db, context, name, email, password, null);
+                    int result = importPasswordWithConflictCheck(db, context, name, email, password, null, lastUpdate);
                     counters[result]++;
                 }
             } else if (importData != null) {
@@ -861,6 +884,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         String name = pObj.getString(COLUMN_NAME);
                         String email = pObj.getString(COLUMN_EMAIL);
                         String password = pObj.getString(COLUMN_PASSWORD);
+                        
+                        long lastUpdate = pObj.optLong(COLUMN_LAST_UPDATE, System.currentTimeMillis());
 
                         Integer newFolderId = null;
                         if (pObj.has(COLUMN_FOLDER_ID)) {
@@ -868,7 +893,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                             newFolderId = folderIdMap.get(oldFolderId);
                         }
 
-                        int result = importPasswordWithConflictCheck(db, context, name, email, password, newFolderId);
+                        int result = importPasswordWithConflictCheck(db, context, name, email, password, newFolderId, lastUpdate);
                         counters[result]++;
                     }
                 }
@@ -906,7 +931,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @return IMPORT_ADDED (0), IMPORT_IGNORED (1), or IMPORT_CONFLICT (2)
      */
     @SuppressLint("Range")
-    private static int importPasswordWithConflictCheck(SQLiteDatabase db, Context context, String name, String email, String password, Integer folderId) {
+    private static int importPasswordWithConflictCheck(SQLiteDatabase db, Context context, String name, String email, String password, Integer folderId, long lastUpdate) {
         // Look for existing entries with same title + username
         Cursor cursor = db.query(TABLE_NAME, new String[]{COLUMN_PASSWORD},
                 COLUMN_NAME + " = ? AND " + COLUMN_EMAIL + " = ?",
@@ -930,13 +955,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 return IMPORT_IGNORED;
             } else {
                 // Case 2: Same title+username but different password — import with (Conflict)
-                addEntry(context, name + " (Conflict)", email, password, folderId);
+                addEntry(context, name + " (Conflict)", email, password, folderId, lastUpdate);
                 return IMPORT_CONFLICT;
             }
         } else {
             // Case 3: No match — import normally
             if (cursor != null) cursor.close();
-            addEntry(context, name, email, password, folderId);
+            addEntry(context, name, email, password, folderId, lastUpdate);
             return IMPORT_ADDED;
         }
     }

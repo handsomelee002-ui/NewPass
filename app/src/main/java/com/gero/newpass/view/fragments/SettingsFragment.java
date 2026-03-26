@@ -44,11 +44,13 @@ public class SettingsFragment extends Fragment {
     private EncryptedSharedPreferences encryptedSharedPreferences;
     static final int DARK_THEME = 0;
     static final int BIOMETRIC_LOGIN = 1;
-    static final int GENERATE_PASSWORD = 2;
-    static final int CHANGE_PASSWORD = 3;
-    static final int EXPORT = 4;
-    static final int IMPORT = 5;
-    static final int APP_VERSION = 6;
+    static final int AUTO_LOCK = 2;
+    static final int SECURITY_CHECKUP = 3;
+    static final int GENERATE_PASSWORD = 4;
+    static final int CHANGE_PASSWORD = 5;
+    static final int EXPORT = 6;
+    static final int IMPORT = 7;
+    static final int APP_VERSION = 8;
     private ActivityResultLauncher<Intent> importDocumentLauncher;
     private ActivityResultLauncher<Intent> exportDocumentLauncher;
 
@@ -138,6 +140,28 @@ public class SettingsFragment extends Fragment {
                     intentImport.setType("*/*");
                     importDocumentLauncher.launch(intentImport);
                     break;
+                    
+                case AUTO_LOCK:
+                    VibrationHelper.vibrate(binding.getRoot(), VibrationHelper.VibrationType.Weak);
+                    int currentTimeout = encryptedSharedPreferences.getInt("AUTO_LOCK_TIMEOUT", 15);
+                    int nextTimeout = 15;
+                    if (currentTimeout == 15) nextTimeout = 20;
+                    else if (currentTimeout == 20) nextTimeout = 30;
+                    else if (currentTimeout == 30) nextTimeout = 60;
+                    else if (currentTimeout == 60) nextTimeout = 15;
+
+                    encryptedSharedPreferences.edit().putInt("AUTO_LOCK_TIMEOUT", nextTimeout).apply();
+
+                    arrayList.get(position).setName("Auto-Lock Timeout: " + nextTimeout + "s");
+                    settingsAdapter.notifyDataSetChanged();
+                    break;
+                    
+                case SECURITY_CHECKUP:
+                    VibrationHelper.vibrate(binding.getRoot(), VibrationHelper.VibrationType.Weak);
+                    if (getActivity() instanceof MainViewActivity) {
+                        ((MainViewActivity) getActivity()).openFragment(new SecurityDashboardFragment());
+                    }
+                    break;
 
                 case APP_VERSION:
                     com.gero.newpass.utilities.ToastHelper.showToast(requireContext(), "\uD83D\uDE80⚡", Toast.LENGTH_SHORT);
@@ -150,8 +174,14 @@ public class SettingsFragment extends Fragment {
     private void createSettingsList(ArrayList<SettingData> arrayList) {
         arrayList.add(new SettingData(DARK_THEME, R.drawable.settings_icon_dark_theme, getString(R.string.settings_dark_theme), false, true, 1));
         arrayList.add(new SettingData(BIOMETRIC_LOGIN, R.drawable.ic_fingerprint, "Enable Biometric Login", false, true, 2));
+        
+        int currentTimeout = encryptedSharedPreferences.getInt("AUTO_LOCK_TIMEOUT", 15);
+        arrayList.add(new SettingData(AUTO_LOCK, R.drawable.settings_icon_lock, "Auto-Lock Timeout: " + currentTimeout + "s", true));
+        arrayList.add(new SettingData(SECURITY_CHECKUP, R.drawable.settings_icon_lock, "Security Checkup Dashboard", true));
+
         arrayList.add(new SettingData(GENERATE_PASSWORD, R.drawable.btn_regenerate, "Random Password Generator"));
         arrayList.add(new SettingData(CHANGE_PASSWORD, R.drawable.settings_icon_lock, getString(R.string.settings_change_password)));
+        
         arrayList.add(new SettingData(EXPORT, R.drawable.icon_export, getString(R.string.settings_export_db)));
         arrayList.add(new SettingData(IMPORT, R.drawable.icon_import, getString(R.string.settings_import_db)));
         arrayList.add(new SettingData(APP_VERSION, R.drawable.settings_icon_version, getString(R.string.app_version) + getAppVersion()));

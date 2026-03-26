@@ -297,6 +297,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
+     * Reads all passwords regardless of their folder location.
+     * Used exclusively for the Security Dashboard to scan the entire vault.
+     */
+    public Cursor readAllPasswords() {
+        SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
+        return db.rawQuery("SELECT * FROM " + TABLE_NAME + " ORDER BY " + COLUMN_LAST_UPDATE + " ASC", null);
+    }
+
+    /**
      * Deletes a folder and handles cascading logic.
      * Recursively deletes all sub-folders first.
      * @param cascade If true, delete all passwords in this folder and sub-folders. If false, move them to root (folder_id = NULL).

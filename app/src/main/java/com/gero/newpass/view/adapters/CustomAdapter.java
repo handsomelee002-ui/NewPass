@@ -184,6 +184,13 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
         notifyItemMoved(fromPosition, toPosition);
     }
 
+    @SuppressLint("NotifyDataSetChanged")
+    public void updateData(List<ListItem> newData) {
+        this.dataList.clear();
+        this.dataList.addAll(newData);
+        notifyDataSetChanged();
+    }
+
     public static class FolderViewHolder extends RecyclerView.ViewHolder {
         TextView folder_name_txt;
         CardView mainLayoutFolder;

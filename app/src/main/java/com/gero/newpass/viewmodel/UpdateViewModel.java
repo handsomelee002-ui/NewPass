@@ -35,7 +35,7 @@ public class UpdateViewModel extends ViewModel {
 
         String encryptedPassword = EncryptionHelper.encrypt(password);
 
-        if (!name.isEmpty() && !email.isEmpty() && password.length() >= 6) {
+        if (!name.isEmpty() && !password.isEmpty()) {
             databaseHelper.updateData(entry, name, email, encryptedPassword, folderId);
             messageLiveData.setValue(resourceRepository.getString(R.string.dbhelper_updated_successfully));
             successUpdateLiveData.setValue(true);
@@ -45,9 +45,6 @@ public class UpdateViewModel extends ViewModel {
 
             if (name.isEmpty()) {
                 messageLiveData.setValue(resourceRepository.getString(R.string.name_should_not_be_empty));
-
-            } else if (email.isEmpty()) {
-                messageLiveData.setValue(resourceRepository.getString(R.string.email_should_not_be_empty));
 
             } else {
                 messageLiveData.setValue(resourceRepository.getString(R.string.password_must_be_at_least_4_characters_long));

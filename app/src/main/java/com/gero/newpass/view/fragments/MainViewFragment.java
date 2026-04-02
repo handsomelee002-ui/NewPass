@@ -187,6 +187,9 @@ public class MainViewFragment extends Fragment {
         // Always show "Add Folder" button so sub-folders can be created at any level
         buttonAddFolder.setVisibility(View.VISIBLE);
 
+        // Remove old observers to prevent stale references during drag-reorder
+        mainViewModel.getDataList().removeObservers(getViewLifecycleOwner());
+
         mainViewModel.getDataList().observe(getViewLifecycleOwner(), dataList -> {
             ItemTouchHelper[] touchHelper = new ItemTouchHelper[1];
 
@@ -228,6 +231,7 @@ public class MainViewFragment extends Fragment {
                 public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
                     int fromPosition = viewHolder.getAdapterPosition();
                     int toPosition = target.getAdapterPosition();
+                    if (fromPosition == RecyclerView.NO_POSITION || toPosition == RecyclerView.NO_POSITION) return false;
                     customAdapter.moveItem(fromPosition, toPosition);
                     return true;
                 }
@@ -239,10 +243,11 @@ public class MainViewFragment extends Fragment {
                 @Override
                 public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
                     super.clearView(recyclerView, viewHolder);
-                    // Save new order after drag ends
+                    // Save new order after drag ends — use a defensive snapshot
+                    java.util.List<ListItem> snapshot = new java.util.ArrayList<>(dataList);
                     com.gero.newpass.database.DatabaseHelper db = com.gero.newpass.database.DatabaseServiceLocator.getDatabaseHelper();
-                    for (int i = 0; i < dataList.size(); i++) {
-                        ListItem item = dataList.get(i);
+                    for (int i = 0; i < snapshot.size(); i++) {
+                        ListItem item = snapshot.get(i);
                         if (item.getType() == ListItem.TYPE_FOLDER) {
                             db.updateFolderSortOrder(((FolderData)item).getId(), i);
                         } else {
@@ -293,6 +298,9 @@ public class MainViewFragment extends Fragment {
 
                     mainViewModel.storeSearchedDataInArrays(searchTerm);
 
+                    // Remove old observers to prevent stale references during drag-reorder
+                    mainViewModel.getSearchedDataList().removeObservers(getViewLifecycleOwner());
+
                     mainViewModel.getSearchedDataList().observe(getViewLifecycleOwner(), searchedDataList -> {
                         ItemTouchHelper[] touchHelper = new ItemTouchHelper[1];
                         
@@ -333,6 +341,7 @@ public class MainViewFragment extends Fragment {
                             public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
                                 int fromPosition = viewHolder.getAdapterPosition();
                                 int toPosition = target.getAdapterPosition();
+                                if (fromPosition == RecyclerView.NO_POSITION || toPosition == RecyclerView.NO_POSITION) return false;
                                 customAdapter.moveItem(fromPosition, toPosition);
                                 return true;
                             }
@@ -343,9 +352,11 @@ public class MainViewFragment extends Fragment {
                             @Override
                             public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
                                 super.clearView(recyclerView, viewHolder);
+                                // Use a defensive snapshot
+                                java.util.List<ListItem> snapshot = new java.util.ArrayList<>(searchedDataList);
                                 com.gero.newpass.database.DatabaseHelper db = com.gero.newpass.database.DatabaseServiceLocator.getDatabaseHelper();
-                                for (int i = 0; i < searchedDataList.size(); i++) {
-                                    ListItem item = searchedDataList.get(i);
+                                for (int i = 0; i < snapshot.size(); i++) {
+                                    ListItem item = snapshot.get(i);
                                     if (item.getType() == ListItem.TYPE_FOLDER) {
                                         db.updateFolderSortOrder(((FolderData)item).getId(), i);
                                     } else {
@@ -479,7 +490,7 @@ public class MainViewFragment extends Fragment {
                                      }
                                  } catch (Exception ignored) {}
                              }, 30_000);
-                             com.gero.newpass.utilities.ToastHelper.showToast(requireContext(), "Password Copied (auto-clears in 30s)", android.widget.Toast.LENGTH_SHORT);
+                             com.gero.newpass.utilities.ToastHelper.showToast(requireContext(), "Action completed", android.widget.Toast.LENGTH_SHORT);
                          } catch (Exception ignored) {}
                    } else if (which == 1) {
                         showMoveToFolderDialog(password);

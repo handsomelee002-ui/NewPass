@@ -100,7 +100,7 @@ public class GeneratePasswordFragment extends Fragment {
             ) {
                 copyToClipboard(textViewPassword.getText().toString());
                 VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Strong);
-                com.gero.newpass.utilities.ToastHelper.showToast(this.getContext(), R.string.generate_text_copied_to_clipboard, Toast.LENGTH_SHORT);
+                com.gero.newpass.utilities.ToastHelper.showToast(this.getContext(), "Action completed", Toast.LENGTH_SHORT);
             }
         });
 

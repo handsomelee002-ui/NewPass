@@ -243,13 +243,13 @@ public class UpdatePasswordFragment extends Fragment {
         copyButtonPassword.setOnClickListener(v -> {
             copyToClipboard(passwordInput.getText().toString().trim());
             VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Strong);
-            com.gero.newpass.utilities.ToastHelper.showToast(this.getContext(), R.string.update_password_copied_to_the_clipboard, Toast.LENGTH_SHORT);
+            com.gero.newpass.utilities.ToastHelper.showToast(this.getContext(), "Action completed", Toast.LENGTH_SHORT);
         });
 
         copyButtonEmail.setOnClickListener(v -> {
             copyToClipboard(email_input.getText().toString().trim());
             VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Strong);
-            com.gero.newpass.utilities.ToastHelper.showToast(this.getContext(), R.string.update_email_copied_to_the_clipboard, Toast.LENGTH_SHORT);
+            com.gero.newpass.utilities.ToastHelper.showToast(this.getContext(), "Action completed", Toast.LENGTH_SHORT);
         });
 
         buttonPasswordVisibility.setOnClickListener(v -> {

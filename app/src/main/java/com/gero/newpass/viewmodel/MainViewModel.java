@@ -16,7 +16,8 @@ import java.util.ArrayList;
 
 public class MainViewModel extends ViewModel {
 
-    private MutableLiveData<ArrayList<ListItem>> dataList, searchedDataList;
+    private final MutableLiveData<ArrayList<ListItem>> dataList = new MutableLiveData<>();
+    private final MutableLiveData<ArrayList<ListItem>> searchedDataList = new MutableLiveData<>();
     private final DatabaseHelper myDB;
 
     public MainViewModel() {
@@ -24,7 +25,6 @@ public class MainViewModel extends ViewModel {
     }
 
     public void storeDataInArrays(Integer folderId) {
-        dataList = new MutableLiveData<>();
         ArrayList<ListItem> localList = new ArrayList<>();
         
         // Always fetch sub-folders for the current folder (root or any sub-folder)
@@ -67,7 +67,6 @@ public class MainViewModel extends ViewModel {
     }
 
     public void storeSearchedDataInArrays(String searchedData) {
-        searchedDataList = new MutableLiveData<>();
         ArrayList<ListItem> localList = new ArrayList<>();
         Cursor cursor = myDB.searchItem(searchedData);
 

@@ -30,7 +30,7 @@ public class AddViewModel extends ViewModel {
 
     public void addEntry(Context context, String name, String email, String password, Integer folderId) {
 
-        if (!name.isEmpty() && !email.isEmpty() && password.length() >= 6) {
+        if (!name.isEmpty() && !password.isEmpty()) {
 
             if (DatabaseHelper.checkIfAccountAlreadyExist(context, name, email)) {
                     messageLiveData.setValue(resourceRepository.getString(R.string.this_account_already_exists));
@@ -46,9 +46,6 @@ public class AddViewModel extends ViewModel {
                 successLiveData.setValue(false);
                 if (name.isEmpty()) {
                     messageLiveData.setValue(resourceRepository.getString(R.string.name_should_not_be_empty));
-
-                } else if (email.isEmpty()) {
-                    messageLiveData.setValue(resourceRepository.getString(R.string.email_should_not_be_empty));
 
                 } else {
                     messageLiveData.setValue(resourceRepository.getString(R.string.password_must_be_at_least_4_characters_long));

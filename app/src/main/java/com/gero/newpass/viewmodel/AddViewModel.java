@@ -28,28 +28,23 @@ public class AddViewModel extends ViewModel {
         return successLiveData;
     }
 
-    public void addEntry(Context context, String name, String email, String password, Integer folderId) {
+    public void addEntry(Context context, String name, String email, String password, String pin, Integer folderId) {
 
-        if (!name.isEmpty() && !password.isEmpty()) {
+        if (!name.isEmpty()) {
 
             if (DatabaseHelper.checkIfAccountAlreadyExist(context, name, email)) {
                     messageLiveData.setValue(resourceRepository.getString(R.string.this_account_already_exists));
                     successLiveData.setValue(false);
 
                 } else  {
-                    DatabaseHelper.addEntry(context, name, email, password, folderId);
+                    DatabaseHelper.addEntry(context, name, email, password, pin, folderId);
                     messageLiveData.setValue(resourceRepository.getString(R.string.account_added_successfully));
                     successLiveData.setValue(true);
                 }
 
             } else {
                 successLiveData.setValue(false);
-                if (name.isEmpty()) {
-                    messageLiveData.setValue(resourceRepository.getString(R.string.name_should_not_be_empty));
-
-                } else {
-                    messageLiveData.setValue(resourceRepository.getString(R.string.password_must_be_at_least_4_characters_long));
-                }
+                messageLiveData.setValue(resourceRepository.getString(R.string.name_should_not_be_empty));
             }
     }
 }

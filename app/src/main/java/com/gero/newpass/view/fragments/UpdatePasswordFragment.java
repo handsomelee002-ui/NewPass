@@ -54,14 +54,15 @@ public class UpdatePasswordFragment extends Fragment {
 
     private FragmentUpdatePasswordBinding binding;
 
-    private EditText name_input, email_input, passwordInput;
+    private EditText name_input, email_input, passwordInput, pinInput;
     private Spinner folderSpinner;
-    private String entry, name, email, password;
+    private String entry, name, email, password, pin;
     private long lastUpdate;
     private Integer folderId;
-    private ImageButton copyButtonPassword, copyButtonEmail, backButton, buttonPasswordVisibility;
+    private ImageButton copyButtonPassword, copyButtonEmail, copyButtonPin, backButton, buttonPasswordVisibility, buttonPinVisibility;
     private TextView updateButton, deleteButton, duplicateButton;
     private Boolean isPasswordVisible = false;
+    private Boolean isPinVisible = false;
     private List<String[]> folderTreeEntries; // Each entry: {displayName, folderId}
     private TextView strengthLabel;
     private ProgressBar strengthProgress;
@@ -109,10 +110,12 @@ public class UpdatePasswordFragment extends Fragment {
         Activity activity = this.getActivity();
 
         String decryptedPassword = EncryptionHelper.decrypt(password);
+        String decryptedPin = pin != null ? EncryptionHelper.decrypt(pin) : "";
 
         name_input.setText(name);
         email_input.setText(email);
         passwordInput.setText(decryptedPassword);
+        pinInput.setText(decryptedPin);
 
         TextView lastUpdateTxt = binding.getRoot().findViewById(R.id.last_update_txt);
         if (lastUpdateTxt != null && lastUpdate > 0) {
@@ -130,6 +133,7 @@ public class UpdatePasswordFragment extends Fragment {
             name = name_input.getText().toString().trim();
             email = email_input.getText().toString().trim();
             password = passwordInput.getText().toString().trim();
+            pin = pinInput.getText().toString().trim();
 
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
@@ -142,7 +146,7 @@ public class UpdatePasswordFragment extends Fragment {
                     if (selectedPosition > 0) { // 0 is "No Folder"
                         selectedFolderId = Integer.parseInt(folderTreeEntries.get(selectedPosition - 1)[1]);
                     }
-                    updateViewModel.updateEntry(entry, name, email, password, selectedFolderId);
+                    updateViewModel.updateEntry(entry, name, email, password, pin, selectedFolderId);
                     VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Weak);
                     return true;
             }
@@ -265,6 +269,25 @@ public class UpdatePasswordFragment extends Fragment {
             isPasswordVisible = !isPasswordVisible;
         });
 
+        copyButtonPin.setOnClickListener(v -> {
+            copyToClipboard(pinInput.getText().toString().trim());
+            VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Strong);
+            com.gero.newpass.utilities.ToastHelper.showToast(this.getContext(), "Action completed", Toast.LENGTH_SHORT);
+        });
+
+        buttonPinVisibility.setOnClickListener(v -> {
+
+            if (isPinVisible) {
+                buttonPinVisibility.setImageDrawable(ContextCompat.getDrawable(requireContext(), R.drawable.icon_visibility_on));
+                pinInput.setTransformationMethod(PasswordTransformationMethod.getInstance());
+            } else {
+                buttonPinVisibility.setImageDrawable(ContextCompat.getDrawable(requireContext(), R.drawable.icon_visibility_off));
+                pinInput.setTransformationMethod(HideReturnsTransformationMethod.getInstance());
+            }
+
+            isPinVisible = !isPinVisible;
+        });
+
         backButton.setOnClickListener(v -> {
             if (activity instanceof MainViewActivity) {
                 Bundle result = new Bundle();
@@ -284,6 +307,7 @@ public class UpdatePasswordFragment extends Fragment {
             email = args.getString("email");
             password = args.getString("password");
             lastUpdate = args.getLong("last_update", 0L);
+            pin = args.getString("pin");
             
             if (args.containsKey("folderId")) {
                 int fId = args.getInt("folderId");
@@ -323,6 +347,9 @@ public class UpdatePasswordFragment extends Fragment {
         copyButtonPassword = binding.copyButtonPassword;
         copyButtonEmail = binding.copyButtonEmail;
         buttonPasswordVisibility = binding.passwordVisibilityButton;
+        pinInput = binding.pinInput2;
+        copyButtonPin = binding.copyButtonPin;
+        buttonPinVisibility = binding.pinVisibilityButton;
     }
 
     private void updateStrengthMeter(String pass) {

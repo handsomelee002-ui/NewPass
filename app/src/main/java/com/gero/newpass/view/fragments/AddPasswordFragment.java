@@ -42,12 +42,13 @@ import java.util.List;
 
 public class AddPasswordFragment extends Fragment {
 
-    private EditText nameInput, emailInput, passwordInput;
+    private EditText nameInput, emailInput, passwordInput, pinInput;
     private Spinner folderSpinner;
-    private ImageButton buttonBack, buttonPasswordVisibility;
+    private ImageButton buttonBack, buttonPasswordVisibility, buttonPinVisibility;
     private TextView buttonAdd;
     private FragmentAddPasswordBinding binding;
     private Boolean isPasswordVisible = false;
+    private Boolean isPinVisible = false;
     private List<String[]> folderTreeEntries; // Each entry: {displayName, folderId}
     private TextView strengthLabel;
     private ProgressBar strengthProgress;
@@ -102,11 +103,25 @@ public class AddPasswordFragment extends Fragment {
             isPasswordVisible = !isPasswordVisible;
         });
 
+        buttonPinVisibility.setOnClickListener(v -> {
+
+            if (isPinVisible) {
+                buttonPinVisibility.setImageDrawable(ContextCompat.getDrawable(requireContext(), R.drawable.icon_visibility_on));
+                pinInput.setTransformationMethod(PasswordTransformationMethod.getInstance());
+            } else {
+                buttonPinVisibility.setImageDrawable(ContextCompat.getDrawable(requireContext(), R.drawable.icon_visibility_off));
+                pinInput.setTransformationMethod(HideReturnsTransformationMethod.getInstance());
+            }
+
+            isPinVisible = !isPinVisible;
+        });
+
         buttonAdd.setOnTouchListener((v, event) -> {
 
             String name = nameInput.getText().toString().trim();
             String email = emailInput.getText().toString().trim();
             String password = passwordInput.getText().toString().trim();
+            String pin = pinInput.getText().toString().trim();
 
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
@@ -119,7 +134,7 @@ public class AddPasswordFragment extends Fragment {
                     if (selectedPosition > 0) { // 0 is "No Folder"
                         folderId = Integer.parseInt(folderTreeEntries.get(selectedPosition - 1)[1]);
                     }
-                    addViewModel.addEntry(requireContext(), name, email, password, folderId);
+                    addViewModel.addEntry(requireContext(), name, email, password, pin, folderId);
                     VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Strong);
                     return true;
             }
@@ -165,6 +180,8 @@ public class AddPasswordFragment extends Fragment {
         buttonAdd = binding.addButton;
         buttonBack = binding.backButton;
         buttonPasswordVisibility = binding.passwordVisibilityButton;
+        pinInput = binding.pinInput;
+        buttonPinVisibility = binding.pinVisibilityButton;
     }
 
     private void updateStrengthMeter(String pass) {

@@ -31,24 +31,19 @@ public class UpdateViewModel extends ViewModel {
         return successUpdateLiveData;
     }
 
-    public void updateEntry(String entry, String name, String email, String password, Integer folderId) {
+    public void updateEntry(String entry, String name, String email, String password, String pin, Integer folderId) {
 
-        String encryptedPassword = EncryptionHelper.encrypt(password);
+        String encryptedPassword = password != null && !password.isEmpty() ? EncryptionHelper.encrypt(password) : null;
+        String encryptedPin = pin != null && !pin.isEmpty() ? EncryptionHelper.encrypt(pin) : null;
 
-        if (!name.isEmpty() && !password.isEmpty()) {
-            databaseHelper.updateData(entry, name, email, encryptedPassword, folderId);
+        if (!name.isEmpty()) {
+            databaseHelper.updateData(entry, name, email, encryptedPassword, encryptedPin, folderId);
             messageLiveData.setValue(resourceRepository.getString(R.string.dbhelper_updated_successfully));
             successUpdateLiveData.setValue(true);
 
         } else {
             successUpdateLiveData.setValue(false);
-
-            if (name.isEmpty()) {
-                messageLiveData.setValue(resourceRepository.getString(R.string.name_should_not_be_empty));
-
-            } else {
-                messageLiveData.setValue(resourceRepository.getString(R.string.password_must_be_at_least_4_characters_long));
-            }
+            messageLiveData.setValue(resourceRepository.getString(R.string.name_should_not_be_empty));
         }
     }
 

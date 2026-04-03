@@ -5,15 +5,18 @@ public class UserData implements ListItem {
     private String name;
     private String email;
     private String password;
+    private String pin;
     private Integer folderId;
     private int sortOrder;
     private long lastUpdate;
 
-    public UserData(String id, String name, String email, String password, Integer folderId, int sortOrder, long lastUpdate) {
+    public UserData(String id, String name, String email, String password, String pin, Integer folderId, int sortOrder, long lastUpdate) {
         this.id = id;
         this.name = name;
+
         this.email = email;
         this.password = password;
+        this.pin = pin;
         this.folderId = folderId;
         this.sortOrder = sortOrder;
         this.lastUpdate = lastUpdate;
@@ -49,6 +52,14 @@ public class UserData implements ListItem {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getPin() {
+        return pin;
+    }
+
+    public void setPin(String pin) {
+        this.pin = pin;
     }
 
     public Integer getFolderId() {

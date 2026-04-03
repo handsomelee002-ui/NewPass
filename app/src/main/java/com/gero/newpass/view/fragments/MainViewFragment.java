@@ -53,6 +53,9 @@ public class MainViewFragment extends Fragment {
     private Integer currentFolderId = null; // null represents root
     private String currentFolderName = null;
     
+    private ItemTouchHelper activeTouchHelper = null;
+    private ItemTouchHelper activeSearchTouchHelper = null;
+    
     // Navigation stack for nested folder traversal
     private final Stack<Integer> folderIdStack = new Stack<>();
     private final Stack<String> folderNameStack = new Stack<>();
@@ -191,6 +194,9 @@ public class MainViewFragment extends Fragment {
         mainViewModel.getDataList().removeObservers(getViewLifecycleOwner());
 
         mainViewModel.getDataList().observe(getViewLifecycleOwner(), dataList -> {
+            if (activeTouchHelper != null) {
+                activeTouchHelper.attachToRecyclerView(null);
+            }
             ItemTouchHelper[] touchHelper = new ItemTouchHelper[1];
 
             CustomAdapter customAdapter = new CustomAdapter(this.getActivity(), this.getContext(), dataList, new CustomAdapter.OnItemInteractionListener() {
@@ -250,8 +256,10 @@ public class MainViewFragment extends Fragment {
                         ListItem item = snapshot.get(i);
                         if (item.getType() == ListItem.TYPE_FOLDER) {
                             db.updateFolderSortOrder(((FolderData)item).getId(), i);
+                            ((FolderData)item).setSortOrder(i);
                         } else {
                             db.updateEntrySortOrder(((UserData)item).getId(), i);
+                            ((UserData)item).setSortOrder(i);
                         }
                     }
                 }
@@ -259,6 +267,7 @@ public class MainViewFragment extends Fragment {
             ItemTouchHelper touchHelperInstance = new ItemTouchHelper(callback);
             touchHelperInstance.attachToRecyclerView(recyclerView);
             touchHelper[0] = touchHelperInstance;
+            activeTouchHelper = touchHelperInstance;
 
 
 
@@ -302,6 +311,9 @@ public class MainViewFragment extends Fragment {
                     mainViewModel.getSearchedDataList().removeObservers(getViewLifecycleOwner());
 
                     mainViewModel.getSearchedDataList().observe(getViewLifecycleOwner(), searchedDataList -> {
+                        if (activeSearchTouchHelper != null) {
+                            activeSearchTouchHelper.attachToRecyclerView(null);
+                        }
                         ItemTouchHelper[] touchHelper = new ItemTouchHelper[1];
                         
                         CustomAdapter customAdapter = new CustomAdapter(this.getActivity(), this.getContext(), searchedDataList, new CustomAdapter.OnItemInteractionListener() {
@@ -359,8 +371,10 @@ public class MainViewFragment extends Fragment {
                                     ListItem item = snapshot.get(i);
                                     if (item.getType() == ListItem.TYPE_FOLDER) {
                                         db.updateFolderSortOrder(((FolderData)item).getId(), i);
+                                        ((FolderData)item).setSortOrder(i);
                                     } else {
                                         db.updateEntrySortOrder(((UserData)item).getId(), i);
+                                        ((UserData)item).setSortOrder(i);
                                     }
                                 }
                             }
@@ -368,6 +382,7 @@ public class MainViewFragment extends Fragment {
                         ItemTouchHelper touchHelperInstance = new ItemTouchHelper(callback);
                         touchHelperInstance.attachToRecyclerView(recyclerView);
                         touchHelper[0] = touchHelperInstance;
+                        activeSearchTouchHelper = touchHelperInstance;
 
                         count.setText("[" + customAdapter.getItemCount() + "]");
 
@@ -530,7 +545,7 @@ public class MainViewFragment extends Fragment {
                    Integer targetFolderId = folderIds.get(which);
                    if (targetFolderId == -1) targetFolderId = null;
                    
-                   db.updateData(password.getId(), password.getName(), password.getEmail(), password.getPassword(), targetFolderId);
+                   db.updateData(password.getId(), password.getName(), password.getEmail(), password.getPassword(), password.getPin(), targetFolderId);
                    populateUI();
                })
                .setNegativeButton(R.string.cancel, (dialog, which) -> dialog.cancel());

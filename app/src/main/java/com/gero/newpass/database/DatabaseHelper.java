@@ -39,12 +39,13 @@ import java.util.Calendar;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "Password.db";
-    private static final int DATABASE_VERSION = 4; // Incremented for last_update feature
+    private static final int DATABASE_VERSION = 5; // Incremented for PIN feature
     private static final String TABLE_NAME = "my_password_record";
     private static final String COLUMN_ID = "id";
     private static final String COLUMN_NAME = "record_name";
     private static final String COLUMN_EMAIL = "record_email";
     private static final String COLUMN_PASSWORD = "record_password";
+    public static final String COLUMN_PIN = "record_pin"; // Nullable extra passcode
     private static final String COLUMN_FOLDER_ID = "folder_id"; // Nullable foreign key to folders table
     private static final String COLUMN_SORT_ORDER = "sort_order"; // For manual re-ordering
     public static final String COLUMN_LAST_UPDATE = "last_update"; // Age of password
@@ -69,6 +70,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         COLUMN_NAME + " TEXT, " +
                         COLUMN_EMAIL + " TEXT, " +
                         COLUMN_PASSWORD + " TEXT, " +
+                        COLUMN_PIN + " TEXT, " +
                         COLUMN_FOLDER_ID + " INTEGER, " +
                         COLUMN_SORT_ORDER + " INTEGER, " +
                         COLUMN_LAST_UPDATE + " INTEGER);";
@@ -106,6 +108,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             long currentTime = System.currentTimeMillis();
             db.execSQL("UPDATE " + TABLE_NAME + " SET " + COLUMN_LAST_UPDATE + " = " + currentTime + ";");
         }
+        if (oldVersion < 5) {
+            db.execSQL("ALTER TABLE " + TABLE_NAME + " ADD COLUMN " + COLUMN_PIN + " TEXT;");
+        }
     }
 
 
@@ -117,21 +122,24 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @param name     The name of the entry.
      * @param email    The email of the entry.
      * @param password The password of the entry (it will be encrypted before being inserted into the database)
+     * @param pin      The PIN of the entry (it will be encrypted before being inserted into the database)
      */
-    public static void addEntry(Context context, String name, String email, String password, Integer folderId) {
-        addEntry(context, name, email, password, folderId, System.currentTimeMillis());
+    public static void addEntry(Context context, String name, String email, String password, String pin, Integer folderId) {
+        addEntry(context, name, email, password, pin, folderId, System.currentTimeMillis());
     }
 
-    public static void addEntry(Context context, String name, String email, String password, Integer folderId, long lastUpdate) {
+    public static void addEntry(Context context, String name, String email, String password, String pin, Integer folderId, long lastUpdate) {
         SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
         try {
             ContentValues cv = new ContentValues();
 
-            String encryptedPassword = EncryptionHelper.encrypt(password);
+            String encryptedPassword = password != null && !password.isEmpty() ? EncryptionHelper.encrypt(password) : null;
+            String encryptedPin = pin != null && !pin.isEmpty() ? EncryptionHelper.encrypt(pin) : null;
 
             cv.put(COLUMN_NAME, name);
             cv.put(COLUMN_EMAIL, email);
             cv.put(COLUMN_PASSWORD, encryptedPassword);
+            cv.put(COLUMN_PIN, encryptedPin);
             cv.put(COLUMN_LAST_UPDATE, lastUpdate);
             
             if (folderId != null) {
@@ -163,7 +171,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     public Cursor readAllData() {
         SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
-        String query = "SELECT * FROM " + TABLE_NAME;
+        String query = "SELECT " + COLUMN_ID + ", " + COLUMN_NAME + ", " + COLUMN_EMAIL + ", " + COLUMN_PASSWORD + ", " + COLUMN_PIN + ", " + COLUMN_FOLDER_ID + ", " + COLUMN_SORT_ORDER + ", " + COLUMN_LAST_UPDATE + " FROM " + TABLE_NAME;
 
         return db.rawQuery(query, null);
     }
@@ -180,7 +188,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public Cursor searchItem(String itemToSearch) {
         SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
 
-        String query = "SELECT * " +
+        String query = "SELECT " + COLUMN_ID + ", " + COLUMN_NAME + ", " + COLUMN_EMAIL + ", " + COLUMN_PASSWORD + ", " + COLUMN_PIN + ", " + COLUMN_FOLDER_ID + ", " + COLUMN_SORT_ORDER + ", " + COLUMN_LAST_UPDATE + " " +
                 "FROM " + TABLE_NAME +
                 " WHERE " + COLUMN_NAME + " LIKE ?";
 
@@ -195,14 +203,16 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @param name     The new value for the name column.
      * @param email    The new value for the email column.
      * @param password The new value for the password column.
+     * @param pin      The new value for the pin column.
      */
-    public void updateData(String row_id, String name, String email, String password, Integer folderId) {
+    public void updateData(String row_id, String name, String email, String password, String pin, Integer folderId) {
         SQLiteDatabase db = (SQLiteDatabase) this.getWritableDatabase();
         ContentValues cv = new ContentValues();
 
         cv.put(COLUMN_NAME, name);
         cv.put(COLUMN_EMAIL, email);
         cv.put(COLUMN_PASSWORD, password);
+        cv.put(COLUMN_PIN, pin);
         cv.put(COLUMN_LAST_UPDATE, System.currentTimeMillis());
         if (folderId != null) {
             cv.put(COLUMN_FOLDER_ID, folderId);
@@ -262,7 +272,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     public Cursor readAllFolders() {
         SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_FOLDERS + " ORDER BY " + COLUMN_SORT_ORDER + " ASC", null);
+        return db.rawQuery("SELECT " + COLUMN_ID + ", " + COLUMN_FOLDER_NAME + ", " + COLUMN_PARENT_FOLDER_ID + ", " + COLUMN_SORT_ORDER + " FROM " + TABLE_FOLDERS + " ORDER BY " + COLUMN_SORT_ORDER + " ASC", null);
     }
 
     /**
@@ -273,10 +283,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
         String query;
         if (parentFolderId == null) {
-            query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            query = "SELECT " + COLUMN_ID + ", " + COLUMN_FOLDER_NAME + ", " + COLUMN_PARENT_FOLDER_ID + ", " + COLUMN_SORT_ORDER + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
             return db.rawQuery(query, null);
         } else {
-            query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ? ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            query = "SELECT " + COLUMN_ID + ", " + COLUMN_FOLDER_NAME + ", " + COLUMN_PARENT_FOLDER_ID + ", " + COLUMN_SORT_ORDER + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ? ORDER BY " + COLUMN_SORT_ORDER + " ASC";
             return db.rawQuery(query, new String[]{String.valueOf(parentFolderId)});
         }
     }
@@ -288,10 +298,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
         String query;
         if (folderId == null) {
-            query = "SELECT * FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            query = "SELECT " + COLUMN_ID + ", " + COLUMN_NAME + ", " + COLUMN_EMAIL + ", " + COLUMN_PASSWORD + ", " + COLUMN_PIN + ", " + COLUMN_FOLDER_ID + ", " + COLUMN_SORT_ORDER + ", " + COLUMN_LAST_UPDATE + " FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
             return db.rawQuery(query, null);
         } else {
-            query = "SELECT * FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ? ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            query = "SELECT " + COLUMN_ID + ", " + COLUMN_NAME + ", " + COLUMN_EMAIL + ", " + COLUMN_PASSWORD + ", " + COLUMN_PIN + ", " + COLUMN_FOLDER_ID + ", " + COLUMN_SORT_ORDER + ", " + COLUMN_LAST_UPDATE + " FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ? ORDER BY " + COLUMN_SORT_ORDER + " ASC";
             return db.rawQuery(query, new String[]{String.valueOf(folderId)});
         }
     }
@@ -302,7 +312,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     public Cursor readAllPasswords() {
         SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_NAME + " ORDER BY " + COLUMN_LAST_UPDATE + " ASC", null);
+        return db.rawQuery("SELECT " + COLUMN_ID + ", " + COLUMN_NAME + ", " + COLUMN_EMAIL + ", " + COLUMN_PASSWORD + ", " + COLUMN_PIN + ", " + COLUMN_FOLDER_ID + ", " + COLUMN_SORT_ORDER + ", " + COLUMN_LAST_UPDATE + " FROM " + TABLE_NAME + " ORDER BY " + COLUMN_LAST_UPDATE + " ASC", null);
     }
 
     /**
@@ -387,7 +397,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         if (newFolderId == -1) return; // Insertion failed
 
         // 3. Duplicate all passwords inside the original folder
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{folderId});
+        Cursor cursor = db.rawQuery("SELECT " + COLUMN_ID + ", " + COLUMN_NAME + ", " + COLUMN_EMAIL + ", " + COLUMN_PASSWORD + ", " + COLUMN_PIN + ", " + COLUMN_FOLDER_ID + ", " + COLUMN_SORT_ORDER + ", " + COLUMN_LAST_UPDATE + " FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{folderId});
         if (cursor != null && cursor.moveToFirst()) {
             db.beginTransaction();
             try {
@@ -395,11 +405,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     String passName = cursor.getString(cursor.getColumnIndex(COLUMN_NAME));
                     String passEmail = cursor.getString(cursor.getColumnIndex(COLUMN_EMAIL));
                     String passEncrypted = cursor.getString(cursor.getColumnIndex(COLUMN_PASSWORD));
+                    String pinEncrypted = cursor.getColumnIndex(COLUMN_PIN) != -1 ? cursor.getString(cursor.getColumnIndex(COLUMN_PIN)) : null;
                     
                     ContentValues cvPass = new ContentValues();
                     cvPass.put(COLUMN_NAME, passName);
                     cvPass.put(COLUMN_EMAIL, passEmail);
                     cvPass.put(COLUMN_PASSWORD, passEncrypted);
+                    if (pinEncrypted != null) {
+                        cvPass.put(COLUMN_PIN, pinEncrypted);
+                    }
                     cvPass.put(COLUMN_LAST_UPDATE, System.currentTimeMillis()); // already encrypted
                     cvPass.put(COLUMN_FOLDER_ID, newFolderId);
                     
@@ -457,7 +471,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         if (newFolderId == -1) return;
         
         // Duplicate passwords
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{originalFolderId});
+        Cursor cursor = db.rawQuery("SELECT " + COLUMN_ID + ", " + COLUMN_NAME + ", " + COLUMN_EMAIL + ", " + COLUMN_PASSWORD + ", " + COLUMN_PIN + ", " + COLUMN_FOLDER_ID + ", " + COLUMN_SORT_ORDER + ", " + COLUMN_LAST_UPDATE + " FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{originalFolderId});
         if (cursor != null && cursor.moveToFirst()) {
             db.beginTransaction();
             try {
@@ -465,11 +479,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     String passName = cursor.getString(cursor.getColumnIndex(COLUMN_NAME));
                     String passEmail = cursor.getString(cursor.getColumnIndex(COLUMN_EMAIL));
                     String passEncrypted = cursor.getString(cursor.getColumnIndex(COLUMN_PASSWORD));
+                    String pinEncrypted = cursor.getColumnIndex(COLUMN_PIN) != -1 ? cursor.getString(cursor.getColumnIndex(COLUMN_PIN)) : null;
                     
                     ContentValues cvPass = new ContentValues();
                     cvPass.put(COLUMN_NAME, passName);
                     cvPass.put(COLUMN_EMAIL, passEmail);
                     cvPass.put(COLUMN_PASSWORD, passEncrypted);
+                    if (pinEncrypted != null) {
+                        cvPass.put(COLUMN_PIN, pinEncrypted);
+                    }
                     cvPass.put(COLUMN_LAST_UPDATE, System.currentTimeMillis());
                     cvPass.put(COLUMN_FOLDER_ID, newFolderId);
                     
@@ -517,18 +535,22 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     public void duplicateEntry(String rowId, Integer targetFolderId) {
         SQLiteDatabase db = (SQLiteDatabase) this.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_NAME + " WHERE id=?", new String[]{rowId});
+        Cursor cursor = db.rawQuery("SELECT " + COLUMN_ID + ", " + COLUMN_NAME + ", " + COLUMN_EMAIL + ", " + COLUMN_PASSWORD + ", " + COLUMN_PIN + ", " + COLUMN_FOLDER_ID + ", " + COLUMN_SORT_ORDER + ", " + COLUMN_LAST_UPDATE + " FROM " + TABLE_NAME + " WHERE id=?", new String[]{rowId});
         
         if (cursor != null && cursor.moveToFirst()) {
             @SuppressLint("Range") String name = cursor.getString(cursor.getColumnIndex(COLUMN_NAME)) + " (Copy)";
             @SuppressLint("Range") String email = cursor.getString(cursor.getColumnIndex(COLUMN_EMAIL));
             @SuppressLint("Range") String pass = cursor.getString(cursor.getColumnIndex(COLUMN_PASSWORD));
+            @SuppressLint("Range") String pin = cursor.getColumnIndex(COLUMN_PIN) != -1 ? cursor.getString(cursor.getColumnIndex(COLUMN_PIN)) : null;
             cursor.close();
             
             ContentValues cv = new ContentValues();
             cv.put(COLUMN_NAME, name);
             cv.put(COLUMN_EMAIL, email);
             cv.put(COLUMN_PASSWORD, pass); // Store raw from db, which is encrypted
+            if (pin != null) {
+                cv.put(COLUMN_PIN, pin);
+            }
             cv.put(COLUMN_LAST_UPDATE, System.currentTimeMillis());
             if (targetFolderId != null) {
                 cv.put(COLUMN_FOLDER_ID, targetFolderId);
@@ -609,10 +631,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         String query;
         String[] args;
         if (parentId == null) {
-            query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            query = "SELECT " + COLUMN_ID + ", " + COLUMN_FOLDER_NAME + ", " + COLUMN_PARENT_FOLDER_ID + ", " + COLUMN_SORT_ORDER + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL ORDER BY " + COLUMN_SORT_ORDER + " ASC";
             args = null;
         } else {
-            query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ? ORDER BY " + COLUMN_SORT_ORDER + " ASC";
+            query = "SELECT " + COLUMN_ID + ", " + COLUMN_FOLDER_NAME + ", " + COLUMN_PARENT_FOLDER_ID + ", " + COLUMN_SORT_ORDER + " FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ? ORDER BY " + COLUMN_SORT_ORDER + " ASC";
             args = new String[]{String.valueOf(parentId)};
         }
         
@@ -700,7 +722,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         JSONArray passwordsArray = new JSONArray();
 
         // 1. Export Folders
-        Cursor folderCursor = db.rawQuery("SELECT * FROM " + TABLE_FOLDERS, null);
+        Cursor folderCursor = db.rawQuery("SELECT " + COLUMN_ID + ", " + COLUMN_FOLDER_NAME + ", " + COLUMN_PARENT_FOLDER_ID + ", " + COLUMN_SORT_ORDER + " FROM " + TABLE_FOLDERS, null);
         if (folderCursor != null && folderCursor.moveToFirst()) {
             do {
                 JSONObject jsonObject = new JSONObject();
@@ -720,7 +742,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
 
         // 2. Export Passwords
-        Cursor passwordCursor = db.rawQuery("SELECT * FROM " + TABLE_NAME, null);
+        Cursor passwordCursor = db.rawQuery("SELECT " + COLUMN_ID + ", " + COLUMN_NAME + ", " + COLUMN_EMAIL + ", " + COLUMN_PASSWORD + ", " + COLUMN_PIN + ", " + COLUMN_FOLDER_ID + ", " + COLUMN_SORT_ORDER + ", " + COLUMN_LAST_UPDATE + " FROM " + TABLE_NAME, null);
         if (passwordCursor != null && passwordCursor.moveToFirst()) {
             do {
                 JSONObject jsonObject = new JSONObject();
@@ -729,6 +751,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     jsonObject.put(COLUMN_NAME, passwordCursor.getString(passwordCursor.getColumnIndex(COLUMN_NAME)));
                     jsonObject.put(COLUMN_EMAIL, passwordCursor.getString(passwordCursor.getColumnIndex(COLUMN_EMAIL)));
                     jsonObject.put(COLUMN_PASSWORD, EncryptionHelper.decrypt(passwordCursor.getString(passwordCursor.getColumnIndex(COLUMN_PASSWORD))));
+                    
+                    int pinIndex = passwordCursor.getColumnIndex(COLUMN_PIN);
+                    if (pinIndex != -1 && !passwordCursor.isNull(pinIndex)) {
+                        jsonObject.put(COLUMN_PIN, EncryptionHelper.decrypt(passwordCursor.getString(pinIndex)));
+                    }
                     
                     if (!passwordCursor.isNull(passwordCursor.getColumnIndex(COLUMN_FOLDER_ID))) {
                         jsonObject.put(COLUMN_FOLDER_ID, passwordCursor.getInt(passwordCursor.getColumnIndex(COLUMN_FOLDER_ID)));
@@ -817,9 +844,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     String name = jsonObject.getString(COLUMN_NAME);
                     String email = jsonObject.getString(COLUMN_EMAIL);
                     String password = jsonObject.getString(COLUMN_PASSWORD);
+                    String pin = jsonObject.optString(COLUMN_PIN, null);
                     long lastUpdate = jsonObject.optLong(COLUMN_LAST_UPDATE, System.currentTimeMillis());
 
-                    int result = importPasswordWithConflictCheck(db, context, name, email, password, null, lastUpdate);
+                    int result = importPasswordWithConflictCheck(db, context, name, email, password, pin, null, lastUpdate);
                     counters[result]++;
                 }
             } else if (importData != null) {
@@ -893,6 +921,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         String name = pObj.getString(COLUMN_NAME);
                         String email = pObj.getString(COLUMN_EMAIL);
                         String password = pObj.getString(COLUMN_PASSWORD);
+                        String pin = pObj.optString(COLUMN_PIN, null);
                         
                         long lastUpdate = pObj.optLong(COLUMN_LAST_UPDATE, System.currentTimeMillis());
 
@@ -902,7 +931,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                             newFolderId = folderIdMap.get(oldFolderId);
                         }
 
-                        int result = importPasswordWithConflictCheck(db, context, name, email, password, newFolderId, lastUpdate);
+                        int result = importPasswordWithConflictCheck(db, context, name, email, password, pin, newFolderId, lastUpdate);
                         counters[result]++;
                     }
                 }
@@ -940,7 +969,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @return IMPORT_ADDED (0), IMPORT_IGNORED (1), or IMPORT_CONFLICT (2)
      */
     @SuppressLint("Range")
-    private static int importPasswordWithConflictCheck(SQLiteDatabase db, Context context, String name, String email, String password, Integer folderId, long lastUpdate) {
+    private static int importPasswordWithConflictCheck(SQLiteDatabase db, Context context, String name, String email, String password, String pin, Integer folderId, long lastUpdate) {
         // Look for existing entries with same title + username
         Cursor cursor = db.query(TABLE_NAME, new String[]{COLUMN_PASSWORD},
                 COLUMN_NAME + " = ? AND " + COLUMN_EMAIL + " = ?",
@@ -964,13 +993,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 return IMPORT_IGNORED;
             } else {
                 // Case 2: Same title+username but different password — import with (Conflict)
-                addEntry(context, name + " (Conflict)", email, password, folderId, lastUpdate);
+                addEntry(context, name + " (Conflict)", email, password, pin, folderId, lastUpdate);
                 return IMPORT_CONFLICT;
             }
         } else {
             // Case 3: No match — import normally
             if (cursor != null) cursor.close();
-            addEntry(context, name, email, password, folderId, lastUpdate);
+            addEntry(context, name, email, password, pin, folderId, lastUpdate);
             return IMPORT_ADDED;
         }
     }

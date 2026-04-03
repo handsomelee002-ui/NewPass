@@ -39,7 +39,7 @@ public class SecurityDashboardViewModel extends ViewModel {
         if (cursor != null && cursor.getCount() > 0) {
             while (cursor.moveToNext()) {
                 String pass = cursor.getString(3);
-                long lastUpdated = cursor.isNull(6) ? System.currentTimeMillis() : cursor.getLong(6);
+                long lastUpdated = cursor.isNull(7) ? System.currentTimeMillis() : cursor.getLong(7);
 
                 try {
                     String decryptedPass = com.gero.newpass.encryption.EncryptionHelper.decrypt(pass);
@@ -57,8 +57,9 @@ public class SecurityDashboardViewModel extends ViewModel {
                                 cursor.getString(1),
                                 cursor.getString(2),
                                 cursor.getString(3), 
-                                cursor.isNull(4) ? null : cursor.getInt(4),
-                                cursor.getInt(5),
+                                cursor.isNull(4) ? null : cursor.getString(4),
+                                cursor.isNull(5) ? null : cursor.getInt(5),
+                                cursor.getInt(6),
                                 lastUpdated
                         );
                         localList.add(userData);

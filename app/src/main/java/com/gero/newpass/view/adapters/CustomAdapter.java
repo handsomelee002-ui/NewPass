@@ -136,6 +136,11 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
                 args.putString("name", userData.getName());
                 args.putString("email", userData.getEmail());
                 args.putString("password", userData.getPassword());
+                
+                if (userData.getPin() != null) {
+                    args.putString("pin", userData.getPin());
+                }
+                
                 args.putLong("last_update", userData.getLastUpdate());
                 if (userData.getFolderId() != null) {
                     args.putInt("folderId", userData.getFolderId());
@@ -179,8 +184,16 @@ public class CustomAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
     }
 
     public void moveItem(int fromPosition, int toPosition) {
-        ListItem item = dataList.remove(fromPosition);
-        dataList.add(toPosition, item);
+        if (fromPosition < 0 || toPosition < 0 || fromPosition >= dataList.size() || toPosition >= dataList.size()) return;
+        if (fromPosition < toPosition) {
+            for (int i = fromPosition; i < toPosition; i++) {
+                java.util.Collections.swap(dataList, i, i + 1);
+            }
+        } else {
+            for (int i = fromPosition; i > toPosition; i--) {
+                java.util.Collections.swap(dataList, i, i - 1);
+            }
+        }
         notifyItemMoved(fromPosition, toPosition);
     }
 

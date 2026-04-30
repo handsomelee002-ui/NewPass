@@ -1,16 +1,21 @@
 package com.gero.newpass.view.activities;
 
 import android.annotation.SuppressLint;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.method.HideReturnsTransformationMethod;
 import android.text.method.PasswordTransformationMethod;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AlphaAnimation;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.Toast;
@@ -48,7 +53,7 @@ public class LoginActivity extends AppCompatActivity {
     private EditText passwordEntry;
     private ImageButton buttonRegisterOrUnlock, buttonPasswordVisibility;
     private ImageView passwordBox, bgImage;
-    private TextView welcomeTextView, textViewRegisterOrUnlock;
+    private TextView welcomeTextView, textViewRegisterOrUnlock, forgotPasswordTv;
     private FrameLayout loadingOverlay;
     private EncryptedSharedPreferences encryptedSharedPreferences;
     private LoginViewModel loginViewModel;
@@ -101,12 +106,25 @@ public class LoginActivity extends AppCompatActivity {
             String hashedPassword = encryptedSharedPreferences.getString("password", "");
 
             if (success) {
+                // If a recovery code is about to be shown (first account creation or recovery reset),
+                // let the recoveryCodeLiveData observer handle navigation via the dialog's confirm button.
+                String pendingCode = loginViewModel.getRecoveryCodeLiveData().getValue();
+                if (pendingCode != null && !pendingCode.isEmpty()) {
+                    return; // navigation handled by showRecoveryCodeDialog
+                }
                 Intent intent = new Intent(LoginActivity.this, MainViewActivity.class);
                 StringHelper.setSharedString(hashedPassword);
                 startActivity(intent);
                 finish();
             } else {
                 AnimationsUtility.errorAnimation(buttonRegisterOrUnlock, textViewRegisterOrUnlock);
+            }
+        });
+
+        // Show one-time recovery code dialog when a new code is generated
+        loginViewModel.getRecoveryCodeLiveData().observe(this, code -> {
+            if (code != null && !code.isEmpty()) {
+                showRecoveryCodeDialog(code);
             }
         });
 
@@ -130,6 +148,10 @@ public class LoginActivity extends AppCompatActivity {
         if (!isPasswordEmpty) {
             textViewRegisterOrUnlock.setText(getString(R.string.unlock_newpass_button_text));
             welcomeTextView.setText(getString(R.string.welcome_back_newpass_text));
+
+            // Show "Forgot password?" only when a password already exists
+            forgotPasswordTv.setVisibility(View.VISIBLE);
+            forgotPasswordTv.setOnClickListener(v -> showForgotPasswordDialog());
 
             if (SharedPreferencesHelper.isBiometricEnabled(this)) {
                 binding.biometricButton.setVisibility(View.VISIBLE);
@@ -202,10 +224,12 @@ public class LoginActivity extends AppCompatActivity {
 
     private void showLoading() {
         loadingOverlay.setVisibility(View.VISIBLE);
-        AlphaAnimation fadeIn = new AlphaAnimation(0f, 1f);
-        fadeIn.setDuration(250);
-        fadeIn.setFillAfter(true);
-        loadingOverlay.startAnimation(fadeIn);
+        loadingOverlay.setAlpha(0f);
+        loadingOverlay.animate()
+                .alpha(1f)
+                .setDuration(250)
+                .withEndAction(null)
+                .start();
         
         // Disable interaction with the form
         buttonRegisterOrUnlock.setEnabled(false);
@@ -214,22 +238,19 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void hideLoading() {
-        AlphaAnimation fadeOut = new AlphaAnimation(1f, 0f);
-        fadeOut.setDuration(200);
-        fadeOut.setFillAfter(true);
-        fadeOut.setAnimationListener(new Animation.AnimationListener() {
-            @Override
-            public void onAnimationStart(Animation animation) {}
-
-            @Override
-            public void onAnimationEnd(Animation animation) {
-                loadingOverlay.setVisibility(View.GONE);
-            }
-
-            @Override
-            public void onAnimationRepeat(Animation animation) {}
-        });
-        loadingOverlay.startAnimation(fadeOut);
+        loadingOverlay.animate()
+                .alpha(0f)
+                .setDuration(200)
+                .withEndAction(() -> {
+                    loadingOverlay.setVisibility(View.GONE);
+                })
+                .start();
+        
+        // Failsafe: ensure it goes away even if animations are disabled
+        loadingOverlay.postDelayed(() -> {
+            loadingOverlay.setVisibility(View.GONE);
+            loadingOverlay.setAlpha(1f);
+        }, 250);
         
         // Re-enable interaction
         buttonRegisterOrUnlock.setEnabled(true);
@@ -288,7 +309,121 @@ public class LoginActivity extends AppCompatActivity {
         bgImage = binding.logoLogin;
         buttonPasswordVisibility = binding.passwordVisibilityButton;
         loadingOverlay = binding.loadingOverlay;
+        forgotPasswordTv = binding.forgotPasswordTv;
+    }
+
+    /**
+     * Shows the one-time recovery code dialog.
+     * Called after first password creation and after a successful recovery-based password reset.
+     */
+    private void showRecoveryCodeDialog(String formattedCode) {
+        if (isFinishing() || isDestroyed()) return;
+
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_recovery_code, null);
+        TextView tvCode = dialogView.findViewById(R.id.tv_recovery_code);
+        Button btnSaved = dialogView.findViewById(R.id.btn_saved);
+        ImageButton btnCopy = dialogView.findViewById(R.id.btn_copy_code);
+
+        tvCode.setText(formattedCode);
+
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(false)
+                .create();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(R.drawable.bg_dialog_rounded);
+        }
+
+        btnCopy.setOnClickListener(v -> {
+            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(ClipData.newPlainText("RecoveryKey", formattedCode));
+            com.gero.newpass.utilities.ToastHelper.showToast(this, R.string.recovery_key_copied, Toast.LENGTH_SHORT);
+        });
+
+        btnSaved.setOnClickListener(v -> {
+            dialog.dismiss();
+            // Navigate to main screen after first login / recovery reset
+            String hashedPassword = encryptedSharedPreferences.getString("password", "");
+            StringHelper.setSharedString(hashedPassword);
+            startActivity(new Intent(LoginActivity.this, MainViewActivity.class));
+            finish();
+        });
+
+        dialog.show();
+    }
+
+    /**
+     * Shows the "Forgot Password?" dialog: enter recovery key + new password.
+     */
+    private void showForgotPasswordDialog() {
+        if (isFinishing() || isDestroyed()) return;
+
+        String storedHash = encryptedSharedPreferences.getString("recovery_code_hash", "");
+        if (storedHash.isEmpty()) {
+            // No recovery key set up yet — guide the user
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setMessage(getString(R.string.no_recovery_key_found))
+                    .setPositiveButton(R.string.ok, null)
+                    .show();
+            return;
+        }
+
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_enter_recovery_code, null);
+        EditText inputKey = dialogView.findViewById(R.id.input_recovery_key);
+        EditText inputNew = dialogView.findViewById(R.id.input_new_password);
+        EditText inputConfirm = dialogView.findViewById(R.id.input_confirm_password);
+        Button btnConfirm = dialogView.findViewById(R.id.btn_confirm_recovery);
+        Button btnCancel = dialogView.findViewById(R.id.btn_cancel_recovery);
+
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(true)
+                .create();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(R.drawable.bg_dialog_rounded);
+        }
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+
+        btnConfirm.setOnClickListener(v -> {
+            String key = inputKey.getText().toString().trim();
+            String newPwd = inputNew.getText().toString();
+            String confirmPwd = inputConfirm.getText().toString();
+
+            if (key.isEmpty() || newPwd.isEmpty()) {
+                com.gero.newpass.utilities.ToastHelper.showToast(this, R.string.password_cannot_be_empty, Toast.LENGTH_SHORT);
+                return;
+            }
+            if (!newPwd.equals(confirmPwd)) {
+                com.gero.newpass.utilities.ToastHelper.showToast(this, R.string.passwords_do_not_match, Toast.LENGTH_SHORT);
+                return;
+            }
+            if (newPwd.length() < 6) {
+                com.gero.newpass.utilities.ToastHelper.showToast(this, R.string.password_must_be_at_least_4_characters_long, Toast.LENGTH_SHORT);
+                return;
+            }
+
+            dialog.dismiss();
+            
+            // Re-show loading overlay during DB re-keying to prevent freeze
+            showLoading();
+
+            loginViewModel.verifyAndResetWithRecoveryCode(this, key, newPwd, encryptedSharedPreferences, (success, newCode) -> {
+                hideLoading();
+                if (success) {
+                    com.gero.newpass.utilities.ToastHelper.showToast(this, R.string.recovery_success, Toast.LENGTH_SHORT);
+                    // Show the brand-new recovery code that was generated
+                    showRecoveryCodeDialog(newCode);
+                } else {
+                    com.gero.newpass.utilities.ToastHelper.showToast(this, R.string.recovery_invalid, Toast.LENGTH_SHORT);
+                }
+            });
+        });
+
+        dialog.show();
     }
 
 
-}
+}

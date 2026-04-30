@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- Warning icon -->
+    <ImageView
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="12dp"
+        android:src="@drawable/warning"
+        android:contentDescription="Warning" />
+
+    <!-- Title -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/recovery_key_title"
+        android:fontFamily="@font/jetbrainsmonobold"
+        android:textSize="18sp"
+        android:textColor="@color/text_primary"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Code display box -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/background_inputbox"
+        android:padding="12dp"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/tv_recovery_code"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:fontFamily="@font/jetbrainsmonobold"
+            android:textSize="14sp"
+            android:textColor="@color/accent"
+            android:gravity="center"
+            android:textIsSelectable="true"
+            android:letterSpacing="0.1"
+            tools:text="ABCD-EF12-GH34-IJ56-KL78-MN90"
+            xmlns:tools="http://schemas.android.com/tools" />
+
+        <ImageButton
+            android:id="@+id/btn_copy_code"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:backgroundTint="@android:color/transparent"
+            android:padding="4dp"
+            android:src="@drawable/btn_copy"
+            android:contentDescription="Copy recovery key"
+            android:scaleType="fitCenter" />
+
+    </LinearLayout>
+
+    <!-- Warning text -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/recovery_key_warning"
+        android:fontFamily="@font/jetbrainsmonoregular"
+        android:textSize="12sp"
+        android:textColor="@color/text_primary"
+        android:gravity="center"
+        android:layout_marginBottom="20dp"
+        android:lineSpacingMultiplier="1.4" />
+
+    <!-- Confirm button -->
+    <Button
+        android:id="@+id/btn_saved"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="@string/recovery_key_saved"
+        android:fontFamily="@font/jetbrainsmonobold"
+        android:textSize="14sp"
+        android:backgroundTint="@color/accent"
+        android:textColor="@color/background_primary" />
+
+</LinearLayout>

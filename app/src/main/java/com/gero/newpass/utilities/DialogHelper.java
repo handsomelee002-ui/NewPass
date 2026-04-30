@@ -51,6 +51,20 @@ public class DialogHelper {
         EditText secondInput = dialogView.findViewById(R.id.second_input);
         EditText thirdInput = dialogView.findViewById(R.id.third_input);
 
+        // Reset timer when user types
+        android.text.TextWatcher resetTimerWatcher = new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (context instanceof com.gero.newpass.view.activities.MainViewActivity) {
+                    ((com.gero.newpass.view.activities.MainViewActivity) context).startInactivityTimer();
+                }
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        };
+        firstInput.addTextChangedListener(resetTimerWatcher);
+        secondInput.addTextChangedListener(resetTimerWatcher);
+        thirdInput.addTextChangedListener(resetTimerWatcher);
+
         builder.setTitle(R.string.settings_change_password)
                 .setPositiveButton(R.string.update_alertdialog_yes, (dialog, id) -> {
 
@@ -82,11 +96,20 @@ public class DialogHelper {
                                 mainHandler.post(() -> {
                                     SharedPreferences.Editor editor = encryptedSharedPreferences.edit();
                                     editor.putString("password", hashedPassword);
+                                    // Invalidate biometric wrap — user must re-login once to re-register biometrics
+                                    editor.remove("biometric_wrapped_password");
                                     editor.apply();
 
                                     DatabaseHelper.changeDBPassword(hashedPassword, context);
 
+                                    // Generate a fresh recovery code and show it once
+                                    com.gero.newpass.viewmodel.LoginViewModel tempVm =
+                                            new com.gero.newpass.viewmodel.LoginViewModel(
+                                                    new com.gero.newpass.repository.ResourceRepository(context));
+                                    String newCode = tempVm.generateAndStoreRecoveryCode(encryptedSharedPreferences);
+
                                     dismissSafe(loadingDialog, context);
+                                    showRecoveryCodeAfterPasswordChange(context, newCode);
                                 });
                             } else {
                                 mainHandler.post(() -> {
@@ -114,6 +137,16 @@ public class DialogHelper {
         View dialogView = inflater.inflate(R.layout.dialog_export_or_import_db, null);
         builder.setView(dialogView);
         EditText input = dialogView.findViewById(R.id.input);
+        
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (context instanceof com.gero.newpass.view.activities.MainViewActivity) {
+                    ((com.gero.newpass.view.activities.MainViewActivity) context).startInactivityTimer();
+                }
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        });
 
         builder.setTitle(R.string.export_database)
                 .setPositiveButton(R.string.confirm, (dialog, id) -> {
@@ -147,6 +180,16 @@ public class DialogHelper {
         View dialogView = inflater.inflate(R.layout.dialog_export_or_import_db, null);
         builder.setView(dialogView);
         EditText input = dialogView.findViewById(R.id.input);
+        
+        input.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (context instanceof com.gero.newpass.view.activities.MainViewActivity) {
+                    ((com.gero.newpass.view.activities.MainViewActivity) context).startInactivityTimer();
+                }
+            }
+            @Override public void afterTextChanged(android.text.Editable s) {}
+        });
 
         builder.setTitle(R.string.import_database)
                 .setPositiveButton(R.string.confirm, (dialog, id) -> {
@@ -202,6 +245,16 @@ public class DialogHelper {
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawableResource(R.drawable.bg_rounded_input);
         }
+
+        if (context instanceof androidx.lifecycle.LifecycleOwner) {
+            ((androidx.lifecycle.LifecycleOwner) context).getLifecycle().addObserver(new androidx.lifecycle.DefaultLifecycleObserver() {
+                @Override
+                public void onDestroy(@androidx.annotation.NonNull androidx.lifecycle.LifecycleOwner owner) {
+                    dismissSafe(dialog, context);
+                }
+            });
+        }
+
         dialog.show();
         
         return dialog;
@@ -232,6 +285,54 @@ public class DialogHelper {
         }
 
         dialogView.findViewById(R.id.btn_done).setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
+    }
+    /**
+     * Shows the new recovery code to the user immediately after a Settings → Change Password success.
+     */
+    private static void showRecoveryCodeAfterPasswordChange(Context context, String formattedCode) {
+        if (context instanceof android.app.Activity) {
+            android.app.Activity activity = (android.app.Activity) context;
+            if (activity.isFinishing() || activity.isDestroyed()) return;
+        }
+
+        View dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_recovery_code, null);
+        TextView tvCode = dialogView.findViewById(R.id.tv_recovery_code);
+        android.widget.Button btnSaved = dialogView.findViewById(R.id.btn_saved);
+        android.widget.ImageButton btnCopy = dialogView.findViewById(R.id.btn_copy_code);
+
+        tvCode.setText(formattedCode);
+
+        AlertDialog dialog = new AlertDialog.Builder(context)
+                .setView(dialogView)
+                .setCancelable(false)
+                .create();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(R.drawable.bg_dialog_rounded);
+        }
+
+        if (context instanceof androidx.lifecycle.LifecycleOwner) {
+            ((androidx.lifecycle.LifecycleOwner) context).getLifecycle().addObserver(new androidx.lifecycle.DefaultLifecycleObserver() {
+                @Override
+                public void onDestroy(@androidx.annotation.NonNull androidx.lifecycle.LifecycleOwner owner) {
+                    dismissSafe(dialog, context);
+                }
+            });
+        }
+
+        btnCopy.setOnClickListener(v -> {
+            if (context instanceof com.gero.newpass.view.activities.MainViewActivity) {
+                ((com.gero.newpass.view.activities.MainViewActivity) context).startInactivityTimer();
+            }
+            android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("RecoveryKey", formattedCode));
+            ToastHelper.showToast(context, R.string.recovery_key_copied, Toast.LENGTH_SHORT);
+        });
+
+        btnSaved.setOnClickListener(v -> dialog.dismiss());
 
         dialog.show();
     }

@@ -223,6 +223,21 @@
             app:layout_constraintStart_toStartOf="@+id/guideline_col_1"
             app:layout_constraintTop_toTopOf="@+id/register_or_unlock_button" />
 
+        <TextView
+            android:id="@+id/forgot_password_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/jetbrainsmonoregular"
+            android:text="@string/forgot_password"
+            android:textColor="@color/text_primary"
+            android:textSize="12sp"
+            android:alpha="0.65"
+            android:paddingTop="4dp"
+            android:visibility="gone"
+            app:layout_constraintTop_toBottomOf="@+id/guideline_row_6"
+            app:layout_constraintStart_toStartOf="@+id/guideline_col_1"
+            app:layout_constraintEnd_toEndOf="parent" />
+
     <!-- Loading Overlay -->
     <FrameLayout
         android:id="@+id/loading_overlay"

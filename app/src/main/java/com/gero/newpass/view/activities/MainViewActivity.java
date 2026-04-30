@@ -20,14 +20,14 @@ public class MainViewActivity extends AppCompatActivity {
     private final android.os.Handler inactivityHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable inactivityRunnable = this::lockApp;
 
-    private void startInactivityTimer() {
+    public void startInactivityTimer() {
         inactivityHandler.removeCallbacks(inactivityRunnable);
         android.content.SharedPreferences encryptedSharedPreferences = com.gero.newpass.encryption.EncryptionHelper.getEncryptedSharedPreferences(this);
         int timeoutSeconds = encryptedSharedPreferences.getInt("AUTO_LOCK_TIMEOUT", 15);
         inactivityHandler.postDelayed(inactivityRunnable, timeoutSeconds * 1000L);
     }
 
-    private void stopInactivityTimer() {
+    public void stopInactivityTimer() {
         inactivityHandler.removeCallbacks(inactivityRunnable);
     }
 

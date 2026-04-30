@@ -18,27 +18,30 @@ public class MainViewModel extends ViewModel {
 
     private final MutableLiveData<ArrayList<ListItem>> dataList = new MutableLiveData<>();
     private final MutableLiveData<ArrayList<ListItem>> searchedDataList = new MutableLiveData<>();
-    private final DatabaseHelper myDB;
 
-    public MainViewModel() {
-        myDB = DatabaseServiceLocator.getDatabaseHelper();
+    // Always look up the current singleton so a post-rekey DatabaseHelper is used.
+    private DatabaseHelper getDB() {
+        return DatabaseServiceLocator.getDatabaseHelper();
     }
 
     public void storeDataInArrays(Integer folderId) {
+        DatabaseHelper myDB = getDB();
         ArrayList<ListItem> localList = new ArrayList<>();
         
         // Always fetch sub-folders for the current folder (root or any sub-folder)
         Cursor folderCursor = myDB.readFoldersByParent(folderId);
-        if (folderCursor != null && folderCursor.getCount() > 0) {
-            while (folderCursor.moveToNext()) {
-                Integer parentFolderId = folderCursor.isNull(2) ? null : folderCursor.getInt(2);
-                FolderData folderData = new FolderData(
-                        folderCursor.getString(0),
-                        folderCursor.getString(1),
-                        parentFolderId,
-                        folderCursor.getInt(3)
-                );
-                localList.add(folderData);
+        if (folderCursor != null) {
+            if (folderCursor.getCount() > 0) {
+                while (folderCursor.moveToNext()) {
+                    Integer parentFolderId = folderCursor.isNull(2) ? null : folderCursor.getInt(2);
+                    FolderData folderData = new FolderData(
+                            folderCursor.getString(0),
+                            folderCursor.getString(1),
+                            parentFolderId,
+                            folderCursor.getInt(3)
+                    );
+                    localList.add(folderData);
+                }
             }
             folderCursor.close();
         }
@@ -46,19 +49,21 @@ public class MainViewModel extends ViewModel {
         // Fetch passwords for the current folder (or root)
         Cursor cursor = myDB.readEntriesByFolder(folderId);
 
-        if (cursor != null && cursor.getCount() > 0) {
-            while (cursor.moveToNext()) {
-                UserData userData = new UserData(
-                        cursor.getString(0),
-                        cursor.getString(1),
-                        cursor.getString(2),
-                        cursor.getString(3),
-                        cursor.isNull(4) ? null : cursor.getString(4),
-                        cursor.isNull(5) ? null : cursor.getInt(5),
-                        cursor.getInt(6),
-                        cursor.isNull(7) ? System.currentTimeMillis() : cursor.getLong(7)
-                );
-                localList.add(userData);
+        if (cursor != null) {
+            if (cursor.getCount() > 0) {
+                while (cursor.moveToNext()) {
+                    UserData userData = new UserData(
+                            cursor.getString(0),
+                            cursor.getString(1),
+                            cursor.getString(2),
+                            cursor.getString(3),
+                            cursor.isNull(4) ? null : cursor.getString(4),
+                            cursor.isNull(5) ? null : cursor.getInt(5),
+                            cursor.getInt(6),
+                            cursor.isNull(7) ? System.currentTimeMillis() : cursor.getLong(7)
+                    );
+                    localList.add(userData);
+                }
             }
             cursor.close();
         }
@@ -68,23 +73,26 @@ public class MainViewModel extends ViewModel {
     }
 
     public void storeSearchedDataInArrays(String searchedData) {
+        DatabaseHelper myDB = getDB();
         ArrayList<ListItem> localList = new ArrayList<>();
         Cursor cursor = myDB.searchItem(searchedData);
 
-        if (cursor != null && cursor.getCount() > 0) {
-            while (cursor.moveToNext()) {
-                UserData userData = new UserData(
-                        cursor.getString(0),
-                        cursor.getString(1),
-                        cursor.getString(2),
-                        cursor.getString(3),
-                        cursor.isNull(4) ? null : cursor.getString(4),
-                        cursor.isNull(5) ? null : cursor.getInt(5),
-                        cursor.getInt(6),
-                        cursor.isNull(7) ? System.currentTimeMillis() : cursor.getLong(7)
-                );
+        if (cursor != null) {
+            if (cursor.getCount() > 0) {
+                while (cursor.moveToNext()) {
+                    UserData userData = new UserData(
+                            cursor.getString(0),
+                            cursor.getString(1),
+                            cursor.getString(2),
+                            cursor.getString(3),
+                            cursor.isNull(4) ? null : cursor.getString(4),
+                            cursor.isNull(5) ? null : cursor.getInt(5),
+                            cursor.getInt(6),
+                            cursor.isNull(7) ? System.currentTimeMillis() : cursor.getLong(7)
+                    );
 
-                localList.add(userData);
+                    localList.add(userData);
+                }
             }
             cursor.close();
         }

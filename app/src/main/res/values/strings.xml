@@ -109,4 +109,15 @@
     <string name="password_cannot_be_empty">Password can not be empty!</string>
     <string name="report_an_issue_securely">Report an issue securely</string>
     <string name="website">Website</string>
+    <string name="forgot_password">Forgot password?</string>
+    <string name="recovery_key_title">Save your Recovery Key</string>
+    <string name="recovery_key_warning">This code will only be shown once.\nStore it in a safe place — you will need it if you forget your password.</string>
+    <string name="recovery_key_saved">I\'ve saved it</string>
+    <string name="recovery_key_copied">Recovery key copied to clipboard</string>
+    <string name="no_recovery_key_found">No recovery key is set up yet.\nTo generate one, change your password via Settings → Change Lock Password.</string>
+    <string name="enter_recovery_key">Enter Recovery Key</string>
+    <string name="recovery_key_hint">XXXX-XXXX-XXXX-XXXX-XXXX-XXXX</string>
+    <string name="recovery_invalid">Invalid recovery key</string>
+    <string name="recovery_success">Password reset successfully!</string>
+    <string name="recovery_key_new_generated">A new recovery key has been generated.</string>
 </resources>

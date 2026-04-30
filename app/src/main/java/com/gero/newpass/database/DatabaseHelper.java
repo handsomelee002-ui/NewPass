@@ -53,11 +53,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String TABLE_FOLDERS = "folders";
     private static final String COLUMN_FOLDER_NAME = "folder_name";
     private static final String COLUMN_PARENT_FOLDER_ID = "parent_folder_id"; // Nullable, NULL = root
-    
-    private static final String KEY_ENCRYPTION = StringHelper.getSharedString();
 
     public DatabaseHelper(@Nullable Context context) {
-        super(context, DATABASE_NAME, KEY_ENCRYPTION, null, DATABASE_VERSION, 1, null, null, false);
+        super(context, DATABASE_NAME, StringHelper.getSharedString(), null, DATABASE_VERSION, 1, null, null, false);
         assert context != null;
         System.loadLibrary("sqlcipher");
     }
@@ -129,7 +127,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     public static void addEntry(Context context, String name, String email, String password, String pin, Integer folderId, long lastUpdate) {
-        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), StringHelper.getSharedString(), null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
         try {
             ContentValues cv = new ContentValues();
 
@@ -671,7 +669,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @throws SQLiteException If there's an error accessing the database.
      */
     public static boolean checkIfAccountAlreadyExist(Context context, String name, String email) {
-        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), StringHelper.getSharedString(), null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
         try {
             String selection = COLUMN_NAME + " = ? AND " + COLUMN_EMAIL + " = ?";
             String[] selectionArgs = {name, email};
@@ -701,12 +699,26 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     public static void changeDBPassword(String newPassword, Context context) {
         System.loadLibrary("sqlcipher");
+        
+        // Ensure all active connections from the current singleton are closed
+        DatabaseHelper oldHelper = DatabaseServiceLocator.getDatabaseHelper();
+        if (oldHelper != null) {
+            oldHelper.close();
+        }
+
         String databasePath = context.getDatabasePath(DATABASE_NAME).getAbsolutePath();
-        SQLiteDatabase db = SQLiteDatabase.openDatabase(databasePath, KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(databasePath, StringHelper.getSharedString(), null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
         // Sanitize: escape single quotes to prevent PRAGMA injection
         String sanitizedPassword = newPassword.replace("'", "''");
         db.rawExecSQL("PRAGMA rekey = '" + sanitizedPassword + "'");
         db.close();
+
+        // Update the password in memory so the new singleton will use it
+        com.gero.newpass.utilities.StringHelper.setSharedString(newPassword);
+
+        // Re-initialize the Service Locator singleton with the NEW password
+        DatabaseServiceLocator.init(context);
+
         com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.database_password_changed_successfully, Toast.LENGTH_SHORT);
     }
 
@@ -715,7 +727,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     @SuppressLint("Range")
     public static void exportDatabaseToJson(Context context, String passwordGotFromUser, Uri targetUri) {
 
-        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
+        SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), StringHelper.getSharedString(), null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
 
         JSONObject finalExportObject = new JSONObject();
         JSONArray foldersArray = new JSONArray();
@@ -835,7 +847,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 throw new JSONException("Unsupported JSON format");
             }
 
-            SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), KEY_ENCRYPTION, null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
+            SQLiteDatabase db = SQLiteDatabase.openDatabase(context.getDatabasePath(DATABASE_NAME).getAbsolutePath(), StringHelper.getSharedString(), null, SQLiteDatabase.OPEN_READWRITE, (net.zetetic.database.sqlcipher.SQLiteDatabaseHook) null);
 
             if (oldFormatArray != null) {
                 // LEGACY FORMAT: Flat Array of Passwords

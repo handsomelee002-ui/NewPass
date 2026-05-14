@@ -120,4 +120,14 @@
     <string name="recovery_invalid" translatable="false">Invalid recovery key</string>
     <string name="recovery_success" translatable="false">Password reset successfully!</string>
     <string name="recovery_key_new_generated" translatable="false">A new recovery key has been generated.</string>
+    <string name="master_password_locked" translatable="false">Master password is locked. Use your recovery key.</string>
+    <string name="recovery_locked_wait" translatable="false">Recovery is locked. Try again in %1$s.</string>
+    <string name="recovery_attempts_left" translatable="false">Invalid recovery key. %1$d attempts before timed lock.</string>
+    <string name="wipe_vault" translatable="false">Wipe vault</string>
+    <string name="wipe_vault_title" translatable="false">Wipe vault?</string>
+    <string name="wipe_vault_message" translatable="false">This permanently deletes all local NewPass data on this device.</string>
+    <string name="wipe_vault_confirm" translatable="false">Delete everything</string>
+    <string name="vault_wiped" translatable="false">Vault wiped</string>
+    <string name="recovery_key_button" translatable="false">[recovery key]</string>
+    <string name="verifying" translatable="false">Verifying...</string>
 </resources>

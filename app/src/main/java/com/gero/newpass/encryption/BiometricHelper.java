@@ -64,4 +64,12 @@ public class BiometricHelper {
         cipher.init(Cipher.DECRYPT_MODE, privateKey);
         return cipher;
     }
+
+    public static void deleteBiometricKey() throws Exception {
+        KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+        keyStore.load(null);
+        if (keyStore.containsAlias(KEY_NAME)) {
+            keyStore.deleteEntry(KEY_NAME);
+        }
+    }
 }

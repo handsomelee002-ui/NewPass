@@ -716,6 +716,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         com.gero.newpass.utilities.ToastHelper.showToast(context, R.string.database_password_changed_successfully, Toast.LENGTH_SHORT);
     }
 
+    public static void deleteVaultDatabase(Context context) {
+        DatabaseHelper oldHelper = DatabaseServiceLocator.getDatabaseHelper();
+        if (oldHelper != null) {
+            oldHelper.close();
+            DatabaseServiceLocator.setDatabaseHelper(null);
+        }
+        context.deleteDatabase(DATABASE_NAME);
+    }
+
 
 
     @SuppressLint("Range")

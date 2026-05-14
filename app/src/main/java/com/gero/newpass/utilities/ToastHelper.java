@@ -8,26 +8,25 @@ public class ToastHelper {
     private static Toast mToast;
 
     /**
-     * Shows a toast message, instantly cancelling any currently visible toast
-     * to prevent Android from queuing up "toast spam".
+     * Reuses one process-wide toast so repeated validation/auth messages replace
+     * the visible text instead of entering Android's toast queue.
      */
-    public static void showToast(Context context, CharSequence text, int duration) {
-        if (mToast != null) {
-            mToast.cancel();
+    public static synchronized void showToast(Context context, CharSequence text, int duration) {
+        Context appContext = context.getApplicationContext();
+        if (mToast == null) {
+            mToast = Toast.makeText(appContext, text, duration);
+        } else {
+            mToast.setText(text);
+            mToast.setDuration(duration);
         }
-        mToast = Toast.makeText(context, text, duration);
         mToast.show();
     }
 
     /**
-     * Shows a toast message from a string resource, instantly cancelling any
-     * currently visible toast to prevent Android from queuing up "toast spam".
+     * Reuses one process-wide toast so repeated string-resource messages replace
+     * the visible text instead of entering Android's toast queue.
      */
-    public static void showToast(Context context, @StringRes int resId, int duration) {
-        if (mToast != null) {
-            mToast.cancel();
-        }
-        mToast = Toast.makeText(context, resId, duration);
-        mToast.show();
+    public static synchronized void showToast(Context context, @StringRes int resId, int duration) {
+        showToast(context, context.getString(resId), duration);
     }
 }

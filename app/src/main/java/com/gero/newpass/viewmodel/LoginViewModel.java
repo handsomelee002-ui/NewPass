@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.format.DateUtils;
 
 import androidx.annotation.NonNull;
 import androidx.biometric.BiometricManager;
@@ -33,19 +34,37 @@ import com.gero.newpass.encryption.BiometricHelper;
 
 public class LoginViewModel extends ViewModel {
 
+    public enum AuthUiState {
+        IDLE,
+        VERIFYING_MASTER,
+        VERIFYING_RECOVERY,
+        MASTER_LOCKED,
+        RECOVERY_LOCKED,
+        AUTHENTICATED
+    }
+
     private final MutableLiveData<String> loginMessageLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> loginSuccessLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> loadingLiveData = new MutableLiveData<>(false);
     private final MutableLiveData<String> recoveryCodeLiveData = new MutableLiveData<>();
     private final MutableLiveData<String> databaseKeyLiveData = new MutableLiveData<>();
+    private final MutableLiveData<AuthUiState> authUiStateLiveData = new MutableLiveData<>(AuthUiState.IDLE);
     private final ResourceRepository resourceRepository;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean passwordLoginInProgress = false;
+    private boolean recoveryResetInProgress = false;
 
     // Brute-force protection
-    private int failedAttempts = 0;
-    private static final int MAX_ATTEMPTS_BEFORE_DELAY = 3;
-    private static final long MAX_DELAY_MS = 30_000; // 30 seconds max
+    private static final int MASTER_LOCK_ATTEMPTS = 6;
+    private static final int RECOVERY_LOCK_ATTEMPTS = 6;
+    private static final long FIVE_MINUTES_MS = 5 * 60 * 1000L;
+    private static final long FIFTEEN_MINUTES_MS = 15 * 60 * 1000L;
+    private static final long ONE_HOUR_MS = 60 * 60 * 1000L;
+    private static final long ONE_DAY_MS = 24 * 60 * 60 * 1000L;
+    private static final String MASTER_FAILED_ATTEMPTS = "master_failed_attempts";
+    private static final String MASTER_LOCKED = "master_locked";
+    private static final String MASTER_LAST_FAILED_AT = "master_last_failed_at";
     private static final String RECOVERY_FAILED_ATTEMPTS = "recovery_failed_attempts";
     private static final String RECOVERY_LAST_FAILED_AT = "recovery_last_failed_at";
 
@@ -69,6 +88,9 @@ public class LoginViewModel extends ViewModel {
     }
     public LiveData<String> getDatabaseKeyLiveData() {
         return databaseKeyLiveData;
+    }
+    public LiveData<AuthUiState> getAuthUiStateLiveData() {
+        return authUiStateLiveData;
     }
 
 
@@ -124,16 +146,17 @@ public class LoginViewModel extends ViewModel {
     }
 
     public void loginUserWithPassword(String password, EncryptedSharedPreferences sharedPreferences) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        if (passwordLoginInProgress) {
+            return;
+        }
 
         String hashedPassword = sharedPreferences.getString("password", "");
 
-        // Brute-force protection: enforce delay after too many failed attempts
-        if (failedAttempts >= MAX_ATTEMPTS_BEFORE_DELAY) {
-            long delayMs = Math.min((long) Math.pow(2, failedAttempts - MAX_ATTEMPTS_BEFORE_DELAY) * 1000, MAX_DELAY_MS);
-            loadingLiveData.setValue(true);
-            mainHandler.postDelayed(() -> {
-                performLogin(password, hashedPassword, sharedPreferences);
-            }, delayMs);
+        if (isMasterPasswordLocked(sharedPreferences)) {
+            databaseKeyLiveData.setValue(null);
+            loginSuccessLiveData.setValue(false);
+            authUiStateLiveData.setValue(AuthUiState.MASTER_LOCKED);
+            loginMessageLiveData.setValue(resourceRepository.getString(R.string.master_password_locked));
             return;
         }
 
@@ -141,6 +164,8 @@ public class LoginViewModel extends ViewModel {
     }
 
     private void performLogin(String password, String hashedPassword, EncryptedSharedPreferences sharedPreferences) {
+        passwordLoginInProgress = true;
+        authUiStateLiveData.setValue(AuthUiState.VERIFYING_MASTER);
         loadingLiveData.setValue(true);
         
         executor.execute(() -> {
@@ -148,9 +173,10 @@ public class LoginViewModel extends ViewModel {
                 boolean verified = HashUtils.verifyPassword(password, hashedPassword);
                 
                 mainHandler.post(() -> {
+                    passwordLoginInProgress = false;
                     loadingLiveData.setValue(false);
                     if (verified) {
-                        failedAttempts = 0; // Reset on success
+                        clearAuthFailureState(sharedPreferences);
                         databaseKeyLiveData.setValue(hashedPassword);
                         
                         // Encrypt the hash for biometric login
@@ -167,23 +193,35 @@ public class LoginViewModel extends ViewModel {
                         }
 
                         loginSuccessLiveData.setValue(true);
-                        loginMessageLiveData.setValue(resourceRepository.getString(R.string.login_done));
+                        authUiStateLiveData.setValue(AuthUiState.AUTHENTICATED);
                     } else {
-                        failedAttempts++;
+                        int failedAttempts = sharedPreferences.getInt(MASTER_FAILED_ATTEMPTS, 0) + 1;
+                        SharedPreferences.Editor editor = sharedPreferences.edit()
+                                .putInt(MASTER_FAILED_ATTEMPTS, failedAttempts)
+                                .putLong(MASTER_LAST_FAILED_AT, System.currentTimeMillis());
+                        if (failedAttempts >= MASTER_LOCK_ATTEMPTS) {
+                            editor.putBoolean(MASTER_LOCKED, true);
+                            editor.remove("biometric_wrapped_password");
+                        }
+                        editor.apply();
                         databaseKeyLiveData.setValue(null);
                         loginSuccessLiveData.setValue(false);
-                        if (failedAttempts >= MAX_ATTEMPTS_BEFORE_DELAY) {
-                            long nextDelaySeconds = Math.min((long) Math.pow(2, failedAttempts - MAX_ATTEMPTS_BEFORE_DELAY), MAX_DELAY_MS / 1000);
-                            loginMessageLiveData.setValue(resourceRepository.getString(R.string.access_denied) + " (" + nextDelaySeconds + "s wait)");
+                        if (failedAttempts >= MASTER_LOCK_ATTEMPTS) {
+                            authUiStateLiveData.setValue(AuthUiState.MASTER_LOCKED);
+                            loginMessageLiveData.setValue(resourceRepository.getString(R.string.master_password_locked));
                         } else {
-                            loginMessageLiveData.setValue(resourceRepository.getString(R.string.access_denied));
+                            authUiStateLiveData.setValue(AuthUiState.IDLE);
+                            int attemptsLeft = MASTER_LOCK_ATTEMPTS - failedAttempts;
+                            loginMessageLiveData.setValue(resourceRepository.getString(R.string.access_denied) + " (" + attemptsLeft + " attempts left)");
                         }
                     }
                 });
             } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
                 mainHandler.post(() -> {
+                    passwordLoginInProgress = false;
                     loadingLiveData.setValue(false);
                     loginSuccessLiveData.setValue(false);
+                    authUiStateLiveData.setValue(AuthUiState.IDLE);
                     loginMessageLiveData.setValue("Verification error");
                 });
             }
@@ -191,6 +229,18 @@ public class LoginViewModel extends ViewModel {
     }
 
     public void loginUserWithBiometricAuth(Context context, EncryptedSharedPreferences sharedPreferences) {
+        if (passwordLoginInProgress) {
+            return;
+        }
+
+        if (isMasterPasswordLocked(sharedPreferences)) {
+            databaseKeyLiveData.setValue(null);
+            loginSuccessLiveData.setValue(false);
+            authUiStateLiveData.setValue(AuthUiState.MASTER_LOCKED);
+            loginMessageLiveData.setValue(resourceRepository.getString(R.string.master_password_locked));
+            return;
+        }
+
         Cipher decryptCipher;
         try {
             decryptCipher = BiometricHelper.getDecryptionCipher();
@@ -225,12 +275,14 @@ public class LoginViewModel extends ViewModel {
                     byte[] decryptedBytes = unlockedCipher.doFinal(Base64.decode(wrappedPassword, Base64.DEFAULT));
                     String originalHashedPassword = new String(decryptedBytes, StandardCharsets.UTF_8);
 
+                    clearAuthFailureState(sharedPreferences);
                     databaseKeyLiveData.setValue(originalHashedPassword);
                     loginSuccessLiveData.setValue(true);
-                    loginMessageLiveData.setValue(resourceRepository.getString(R.string.login_done));
+                    authUiStateLiveData.setValue(AuthUiState.AUTHENTICATED);
                 } catch (Exception e) {
                     databaseKeyLiveData.setValue(null);
                     loginSuccessLiveData.setValue(false);
+                    authUiStateLiveData.setValue(AuthUiState.IDLE);
                     loginMessageLiveData.setValue("Failed to decrypt biometric credentials");
                 }
             }
@@ -240,6 +292,7 @@ public class LoginViewModel extends ViewModel {
                 super.onAuthenticationFailed();
                 databaseKeyLiveData.setValue(null);
                 loginSuccessLiveData.setValue(false);
+                authUiStateLiveData.setValue(AuthUiState.IDLE);
                 loginMessageLiveData.setValue(resourceRepository.getString(R.string.access_denied));
             }
         });
@@ -313,6 +366,10 @@ public class LoginViewModel extends ViewModel {
             EncryptedSharedPreferences sharedPreferences,
             RecoveryCallback callback) {
 
+        if (recoveryResetInProgress) {
+            return;
+        }
+
         String storedHash = sharedPreferences.getString("recovery_code_hash", "");
 
         if (storedHash.isEmpty()) {
@@ -325,18 +382,15 @@ public class LoginViewModel extends ViewModel {
             return;
         }
 
-        int recoveryFailedAttempts = sharedPreferences.getInt(RECOVERY_FAILED_ATTEMPTS, 0);
-        long lastFailedAt = sharedPreferences.getLong(RECOVERY_LAST_FAILED_AT, 0L);
-        if (recoveryFailedAttempts >= MAX_ATTEMPTS_BEFORE_DELAY) {
-            long delayMs = Math.min((long) Math.pow(2, recoveryFailedAttempts - MAX_ATTEMPTS_BEFORE_DELAY) * 1000, MAX_DELAY_MS);
-            long elapsedMs = System.currentTimeMillis() - lastFailedAt;
-            if (elapsedMs < delayMs) {
-                callback.onResult(false, null);
-                return;
-            }
+        if (isRecoveryTemporarilyLocked(sharedPreferences)) {
+            authUiStateLiveData.setValue(AuthUiState.RECOVERY_LOCKED);
+            callback.onResult(false, null);
+            return;
         }
 
         loadingLiveData.setValue(true);
+        recoveryResetInProgress = true;
+        authUiStateLiveData.setValue(AuthUiState.VERIFYING_RECOVERY);
 
         // Strip dashes from entered code before verifying
         String stripped = enteredCode.replace("-", "").toUpperCase(Locale.ROOT);
@@ -349,12 +403,11 @@ public class LoginViewModel extends ViewModel {
                     String newHashedPassword = HashUtils.hashPassword(newPassword);
 
                     mainHandler.post(() -> {
+                        recoveryResetInProgress = false;
                         SharedPreferences.Editor editor = sharedPreferences.edit();
                         editor.putString("password", newHashedPassword);
                         // Invalidate old biometric wrap
                         editor.remove("biometric_wrapped_password");
-                        editor.remove(RECOVERY_FAILED_ATTEMPTS);
-                        editor.remove(RECOVERY_LAST_FAILED_AT);
                         editor.apply();
                         
                         // IMPORTANT: Update the SQLCipher database key!
@@ -364,25 +417,119 @@ public class LoginViewModel extends ViewModel {
                         String newCode = generateAndStoreRecoveryCode(sharedPreferences);
 
                         loadingLiveData.setValue(false);
+                        authUiStateLiveData.setValue(AuthUiState.AUTHENTICATED);
                         callback.onResult(true, newCode);
                     });
                 } else {
                     mainHandler.post(() -> {
+                        recoveryResetInProgress = false;
                         int attempts = sharedPreferences.getInt(RECOVERY_FAILED_ATTEMPTS, 0) + 1;
                         sharedPreferences.edit()
                                 .putInt(RECOVERY_FAILED_ATTEMPTS, attempts)
                                 .putLong(RECOVERY_LAST_FAILED_AT, System.currentTimeMillis())
                                 .apply();
                         loadingLiveData.setValue(false);
+                        authUiStateLiveData.setValue(isRecoveryTemporarilyLocked(sharedPreferences)
+                                ? AuthUiState.RECOVERY_LOCKED
+                                : AuthUiState.IDLE);
                         callback.onResult(false, null);
                     });
                 }
             } catch (Exception e) {
                 mainHandler.post(() -> {
+                    recoveryResetInProgress = false;
                     loadingLiveData.setValue(false);
+                    authUiStateLiveData.setValue(AuthUiState.IDLE);
                     callback.onResult(false, null);
                 });
             }
         });
+    }
+
+    public boolean isMasterPasswordLocked(EncryptedSharedPreferences sharedPreferences) {
+        return sharedPreferences.getBoolean(MASTER_LOCKED, false)
+                || sharedPreferences.getInt(MASTER_FAILED_ATTEMPTS, 0) >= MASTER_LOCK_ATTEMPTS;
+    }
+
+    public boolean isRecoveryTemporarilyLocked(EncryptedSharedPreferences sharedPreferences) {
+        return getRecoveryLockoutRemainingMs(sharedPreferences) > 0;
+    }
+
+    public long getRecoveryLockoutRemainingMs(EncryptedSharedPreferences sharedPreferences) {
+        int attempts = sharedPreferences.getInt(RECOVERY_FAILED_ATTEMPTS, 0);
+        if (attempts < RECOVERY_LOCK_ATTEMPTS) {
+            return 0L;
+        }
+
+        long lockDuration = getRecoveryLockDurationMs(attempts);
+        long lastFailedAt = sharedPreferences.getLong(RECOVERY_LAST_FAILED_AT, 0L);
+        long elapsed = System.currentTimeMillis() - lastFailedAt;
+        return Math.max(0L, lockDuration - elapsed);
+    }
+
+    public boolean shouldShowManualWipe(EncryptedSharedPreferences sharedPreferences) {
+        return sharedPreferences.getInt(RECOVERY_FAILED_ATTEMPTS, 0) >= RECOVERY_LOCK_ATTEMPTS
+                && isRecoveryTemporarilyLocked(sharedPreferences);
+    }
+
+    public String getFormattedRecoveryLockout(EncryptedSharedPreferences sharedPreferences) {
+        long remainingMs = getRecoveryLockoutRemainingMs(sharedPreferences);
+        if (remainingMs <= 0) {
+            return "";
+        }
+        return DateUtils.formatElapsedTime((remainingMs + 999L) / 1000L);
+    }
+
+    public int getRecoveryFailedAttempts(EncryptedSharedPreferences sharedPreferences) {
+        return sharedPreferences.getInt(RECOVERY_FAILED_ATTEMPTS, 0);
+    }
+
+    public void wipeVault(Context context, EncryptedSharedPreferences sharedPreferences) {
+        com.gero.newpass.database.DatabaseHelper.deleteVaultDatabase(context);
+        sharedPreferences.edit().clear().apply();
+        com.gero.newpass.utilities.StringHelper.clearSharedString();
+        try {
+            BiometricHelper.deleteBiometricKey();
+        } catch (Exception ignored) {
+        }
+        databaseKeyLiveData.setValue(null);
+        recoveryCodeLiveData.setValue(null);
+        loginSuccessLiveData.setValue(false);
+        authUiStateLiveData.setValue(AuthUiState.IDLE);
+    }
+
+    private static long getRecoveryLockDurationMs(int attempts) {
+        if (attempts == 6) {
+            return FIVE_MINUTES_MS;
+        }
+        if (attempts == 7) {
+            return FIFTEEN_MINUTES_MS;
+        }
+        if (attempts == 8) {
+            return ONE_HOUR_MS;
+        }
+        return ONE_DAY_MS;
+    }
+
+    private static void clearMasterLockout(EncryptedSharedPreferences sharedPreferences) {
+        clearMasterLockout(sharedPreferences.edit()).apply();
+    }
+
+    public void clearAuthFailureState(EncryptedSharedPreferences sharedPreferences) {
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        clearMasterLockout(editor);
+        clearRecoveryLockout(editor);
+        editor.apply();
+    }
+
+    private static SharedPreferences.Editor clearMasterLockout(SharedPreferences.Editor editor) {
+        return editor.remove(MASTER_FAILED_ATTEMPTS)
+                .remove(MASTER_LOCKED)
+                .remove(MASTER_LAST_FAILED_AT);
+    }
+
+    private static SharedPreferences.Editor clearRecoveryLockout(SharedPreferences.Editor editor) {
+        return editor.remove(RECOVERY_FAILED_ATTEMPTS)
+                .remove(RECOVERY_LAST_FAILED_AT);
     }
 }

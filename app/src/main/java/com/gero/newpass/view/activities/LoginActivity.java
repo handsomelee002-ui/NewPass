@@ -12,6 +12,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import com.gero.newpass.BuildConfig;
@@ -44,7 +45,7 @@ import java.security.spec.InvalidKeySpecException;
 public class LoginActivity extends AppCompatActivity {
 
     private EditText passwordEntry;
-    private ImageButton buttonRegisterOrUnlock, buttonPasswordVisibility;
+    private ImageButton buttonRegisterOrUnlock, buttonPasswordVisibility, biometricButton;
     private ImageView passwordBox, bgImage;
     private TextView welcomeTextView, textViewRegisterOrUnlock, forgotPasswordTv;
     private FrameLayout loadingOverlay;
@@ -92,7 +93,9 @@ public class LoginActivity extends AppCompatActivity {
         loginViewModel = new ViewModelProvider(this, new ViewMoldelsFactory(new ResourceRepository(getApplicationContext()))).get(LoginViewModel.class);
 
         loginViewModel.getLoginMessageLiveData().observe(this, message -> {
-             com.gero.newpass.utilities.ToastHelper.showToast(this, message, Toast.LENGTH_SHORT);
+             if (message != null && !message.isEmpty() && !isFinishing() && !isDestroyed()) {
+                 com.gero.newpass.utilities.ToastHelper.showToast(this, message, Toast.LENGTH_SHORT);
+             }
         });
 
         loginViewModel.getLoginSuccessLiveData().observe(this, success -> {
@@ -103,15 +106,12 @@ public class LoginActivity extends AppCompatActivity {
                 if (pendingCode != null && !pendingCode.isEmpty()) {
                     return; // navigation handled by showRecoveryCodeDialog
                 }
-                Intent intent = new Intent(LoginActivity.this, MainViewActivity.class);
-                String databaseKey = loginViewModel.getDatabaseKeyLiveData().getValue();
-                if (databaseKey == null || databaseKey.isEmpty()) {
-                    databaseKey = encryptedSharedPreferences.getString("password", "");
-                }
-                StringHelper.setSharedString(databaseKey);
-                startActivity(intent);
-                finish();
+                navigateToMain();
             } else {
+                if (encryptedSharedPreferences != null && loginViewModel.isMasterPasswordLocked(encryptedSharedPreferences)) {
+                    applyMasterLockoutUi();
+                    showForgotPasswordDialog();
+                }
                 AnimationsUtility.errorAnimation(buttonRegisterOrUnlock, textViewRegisterOrUnlock);
             }
         });
@@ -148,12 +148,14 @@ public class LoginActivity extends AppCompatActivity {
             forgotPasswordTv.setVisibility(View.VISIBLE);
             forgotPasswordTv.setOnClickListener(v -> showForgotPasswordDialog());
 
-            if (SharedPreferencesHelper.isBiometricEnabled(this)) {
-                binding.biometricButton.setVisibility(View.VISIBLE);
+            if (loginViewModel.isMasterPasswordLocked(encryptedSharedPreferences)) {
+                applyMasterLockoutUi();
+            } else if (SharedPreferencesHelper.isBiometricEnabled(this)) {
+                biometricButton.setVisibility(View.VISIBLE);
                 
-                binding.biometricButton.setImageResource(R.drawable.ic_fingerprint);
+                biometricButton.setImageResource(R.drawable.ic_fingerprint);
                 
-                binding.biometricButton.setOnClickListener(v -> {
+                biometricButton.setOnClickListener(v -> {
                     VibrationHelper.vibrate(binding.getRoot(), VibrationHelper.VibrationType.Weak);
                     loginViewModel.loginUserWithBiometricAuth(this, encryptedSharedPreferences);
                 });
@@ -163,10 +165,10 @@ public class LoginActivity extends AppCompatActivity {
                      loginViewModel.loginUserWithBiometricAuth(this, encryptedSharedPreferences);
                 });
             } else {
-                binding.biometricButton.setVisibility(View.GONE);
+                biometricButton.setVisibility(View.GONE);
             }
         } else {
-            binding.biometricButton.setVisibility(View.GONE);
+            biometricButton.setVisibility(View.GONE);
         }
 
         buttonPasswordVisibility.setOnClickListener(v -> {
@@ -303,8 +305,36 @@ public class LoginActivity extends AppCompatActivity {
         passwordBox = binding.backgroundInputbox2;
         bgImage = binding.logoLogin;
         buttonPasswordVisibility = binding.passwordVisibilityButton;
+        biometricButton = binding.biometricButton;
         loadingOverlay = binding.loadingOverlay;
         forgotPasswordTv = binding.forgotPasswordTv;
+    }
+
+    private void applyMasterLockoutUi() {
+        passwordEntry.setText("");
+        passwordEntry.setEnabled(false);
+        buttonPasswordVisibility.setEnabled(false);
+        biometricButton.setVisibility(View.GONE);
+        textViewRegisterOrUnlock.setText(getString(R.string.recovery_key_button));
+        welcomeTextView.setText(getString(R.string.master_password_locked));
+        forgotPasswordTv.setVisibility(View.VISIBLE);
+        forgotPasswordTv.setOnClickListener(v -> showForgotPasswordDialog());
+        buttonRegisterOrUnlock.setOnTouchListener(null);
+        buttonRegisterOrUnlock.setOnClickListener(v -> {
+            VibrationHelper.vibrate(v, VibrationHelper.VibrationType.Weak);
+            showForgotPasswordDialog();
+        });
+    }
+
+    private void navigateToMain() {
+        loginViewModel.clearAuthFailureState(encryptedSharedPreferences);
+        String databaseKey = loginViewModel.getDatabaseKeyLiveData().getValue();
+        if (databaseKey == null || databaseKey.isEmpty()) {
+            databaseKey = encryptedSharedPreferences.getString("password", "");
+        }
+        StringHelper.setSharedString(databaseKey);
+        startActivity(new Intent(LoginActivity.this, MainViewActivity.class));
+        finish();
     }
 
     /**
@@ -337,14 +367,7 @@ public class LoginActivity extends AppCompatActivity {
 
         btnSaved.setOnClickListener(v -> {
             dialog.dismiss();
-            // Navigate to main screen after first login / recovery reset
-            String databaseKey = loginViewModel.getDatabaseKeyLiveData().getValue();
-            if (databaseKey == null || databaseKey.isEmpty()) {
-                databaseKey = encryptedSharedPreferences.getString("password", "");
-            }
-            StringHelper.setSharedString(databaseKey);
-            startActivity(new Intent(LoginActivity.this, MainViewActivity.class));
-            finish();
+            navigateToMain();
         });
 
         dialog.show();
@@ -372,6 +395,9 @@ public class LoginActivity extends AppCompatActivity {
         EditText inputConfirm = dialogView.findViewById(R.id.input_confirm_password);
         Button btnConfirm = dialogView.findViewById(R.id.btn_confirm_recovery);
         Button btnCancel = dialogView.findViewById(R.id.btn_cancel_recovery);
+        Button btnWipe = dialogView.findViewById(R.id.btn_wipe_vault);
+        LinearLayout recoveryLoadingRow = dialogView.findViewById(R.id.recovery_loading_row);
+        final boolean[] recoveryRequestInFlight = {false};
 
         androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setView(dialogView)
@@ -384,7 +410,46 @@ public class LoginActivity extends AppCompatActivity {
 
         btnCancel.setOnClickListener(v -> dialog.dismiss());
 
+        Runnable updateRecoveryLockoutUi = () -> {
+            long remainingMs = loginViewModel.getRecoveryLockoutRemainingMs(encryptedSharedPreferences);
+            boolean locked = remainingMs > 0;
+            boolean enabled = !locked && !recoveryRequestInFlight[0];
+            setRecoveryDialogEnabled(inputKey, inputNew, inputConfirm, btnConfirm, btnCancel, btnWipe, enabled);
+            recoveryLoadingRow.setVisibility(recoveryRequestInFlight[0] ? View.VISIBLE : View.GONE);
+            if (locked) {
+                com.gero.newpass.utilities.ToastHelper.showToast(
+                        this,
+                        getString(R.string.recovery_locked_wait, loginViewModel.getFormattedRecoveryLockout(encryptedSharedPreferences)),
+                        Toast.LENGTH_LONG
+                );
+            }
+            btnWipe.setVisibility(loginViewModel.shouldShowManualWipe(encryptedSharedPreferences) ? View.VISIBLE : View.GONE);
+        };
+
+        btnWipe.setOnClickListener(v -> new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.wipe_vault_title)
+                .setMessage(R.string.wipe_vault_message)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.wipe_vault_confirm, (confirmDialog, which) -> {
+                    loginViewModel.wipeVault(this, encryptedSharedPreferences);
+                    com.gero.newpass.utilities.ToastHelper.showToast(this, R.string.vault_wiped, Toast.LENGTH_SHORT);
+                    dialog.dismiss();
+                    recreate();
+                })
+                .show());
+
+        updateRecoveryLockoutUi.run();
+
         btnConfirm.setOnClickListener(v -> {
+            if (recoveryRequestInFlight[0]) {
+                return;
+            }
+
+            if (loginViewModel.isRecoveryTemporarilyLocked(encryptedSharedPreferences)) {
+                updateRecoveryLockoutUi.run();
+                return;
+            }
+
             String key = inputKey.getText().toString().trim();
             String newPwd = inputNew.getText().toString();
             String confirmPwd = inputConfirm.getText().toString();
@@ -402,24 +467,48 @@ public class LoginActivity extends AppCompatActivity {
                 return;
             }
 
-            dialog.dismiss();
-            
-            // Re-show loading overlay during DB re-keying to prevent freeze
-            showLoading();
+            recoveryRequestInFlight[0] = true;
+            dialog.setCancelable(false);
+            setRecoveryDialogEnabled(inputKey, inputNew, inputConfirm, btnConfirm, btnCancel, btnWipe, false);
+            recoveryLoadingRow.setVisibility(View.VISIBLE);
 
             loginViewModel.verifyAndResetWithRecoveryCode(this, key, newPwd, encryptedSharedPreferences, (success, newCode) -> {
-                hideLoading();
+                recoveryRequestInFlight[0] = false;
+                dialog.setCancelable(true);
+                if (!dialog.isShowing() || isFinishing() || isDestroyed()) {
+                    return;
+                }
+                recoveryLoadingRow.setVisibility(View.GONE);
                 if (success) {
+                    dialog.dismiss();
                     com.gero.newpass.utilities.ToastHelper.showToast(this, R.string.recovery_success, Toast.LENGTH_SHORT);
                     // Show the brand-new recovery code that was generated
                     showRecoveryCodeDialog(newCode);
                 } else {
-                    com.gero.newpass.utilities.ToastHelper.showToast(this, R.string.recovery_invalid, Toast.LENGTH_SHORT);
+                    long remainingMs = loginViewModel.getRecoveryLockoutRemainingMs(encryptedSharedPreferences);
+                    if (remainingMs > 0) {
+                        updateRecoveryLockoutUi.run();
+                    } else {
+                        setRecoveryDialogEnabled(inputKey, inputNew, inputConfirm, btnConfirm, btnCancel, btnWipe, true);
+                        int attemptsLeft = Math.max(0, 6 - loginViewModel.getRecoveryFailedAttempts(encryptedSharedPreferences));
+                        com.gero.newpass.utilities.ToastHelper.showToast(this, getString(R.string.recovery_attempts_left, attemptsLeft), Toast.LENGTH_SHORT);
+                    }
                 }
             });
         });
 
         dialog.show();
+    }
+
+    private void setRecoveryDialogEnabled(EditText inputKey, EditText inputNew, EditText inputConfirm,
+                                          Button btnConfirm, Button btnCancel, Button btnWipe,
+                                          boolean enabled) {
+        inputKey.setEnabled(enabled);
+        inputNew.setEnabled(enabled);
+        inputConfirm.setEnabled(enabled);
+        btnConfirm.setEnabled(enabled);
+        btnCancel.setEnabled(enabled);
+        btnWipe.setEnabled(enabled);
     }
 
 

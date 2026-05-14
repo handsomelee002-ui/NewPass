@@ -1,6 +1,31 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
 }
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.isFile) {
+        file.inputStream().use(::load)
+    }
+}
+
+fun signingProperty(name: String): String? =
+    localProperties.getProperty(name)?.takeIf { it.isNotBlank() } ?: System.getenv(name)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = signingProperty("NEWPASS_RELEASE_STORE_FILE")
+val releaseStorePassword = signingProperty("NEWPASS_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = signingProperty("NEWPASS_RELEASE_KEY_ALIAS")
+val releaseKeyPassword = signingProperty("NEWPASS_RELEASE_KEY_PASSWORD")
+val releaseSignatureSha256 = signingProperty("NEWPASS_RELEASE_SIGNATURE_SHA256")
+val releaseSigningConfigured = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+    releaseSignatureSha256
+).all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.gero.newpass"
@@ -14,6 +39,11 @@ android {
         versionName = "1.12.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField(
+            "String",
+            "OFFICIAL_SIGNATURE_SHA256",
+            "\"${releaseSignatureSha256 ?: "REPLACE_ME_WITH_YOUR_RELEASE_FINGERPRINT"}\""
+        )
     }
 
     buildFeatures {
@@ -22,10 +52,24 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        create("release") {
+            if (releaseSigningConfigured) {
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             //vcsInfo.include = false
         }
@@ -45,16 +89,19 @@ android {
         // Disables dependency metadata when building Android App Bundles.
         includeInBundle = false
     }
-    /*
-      Sign apk in debug build
-      to keep the same signature in all debug builds
-    */
-    signingConfigs {
-        getByName("debug") {
-            storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
-            storePassword = "testkey"
-            keyAlias = "testkey"
-            keyPassword = "testkey"
+}
+
+tasks.matching { task ->
+    task.name in setOf("packageRelease", "assembleRelease", "bundleRelease")
+}.configureEach {
+    doFirst {
+        if (!releaseSigningConfigured) {
+            throw GradleException(
+                "Release signing is not configured. Set NEWPASS_RELEASE_STORE_FILE, " +
+                    "NEWPASS_RELEASE_STORE_PASSWORD, NEWPASS_RELEASE_KEY_ALIAS, " +
+                    "NEWPASS_RELEASE_KEY_PASSWORD, and NEWPASS_RELEASE_SIGNATURE_SHA256 " +
+                    "in local.properties or environment variables."
+            )
         }
     }
 }

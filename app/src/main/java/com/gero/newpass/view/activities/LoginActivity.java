@@ -1,10 +1,6 @@
 package com.gero.newpass.view.activities;
 
 import android.annotation.SuppressLint;
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.method.HideReturnsTransformationMethod;
@@ -13,15 +9,12 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.animation.Animation;
-import android.view.animation.AlphaAnimation;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import com.gero.newpass.BuildConfig;
-import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -103,8 +96,6 @@ public class LoginActivity extends AppCompatActivity {
         });
 
         loginViewModel.getLoginSuccessLiveData().observe(this, success -> {
-            String hashedPassword = encryptedSharedPreferences.getString("password", "");
-
             if (success) {
                 // If a recovery code is about to be shown (first account creation or recovery reset),
                 // let the recoveryCodeLiveData observer handle navigation via the dialog's confirm button.
@@ -113,7 +104,11 @@ public class LoginActivity extends AppCompatActivity {
                     return; // navigation handled by showRecoveryCodeDialog
                 }
                 Intent intent = new Intent(LoginActivity.this, MainViewActivity.class);
-                StringHelper.setSharedString(hashedPassword);
+                String databaseKey = loginViewModel.getDatabaseKeyLiveData().getValue();
+                if (databaseKey == null || databaseKey.isEmpty()) {
+                    databaseKey = encryptedSharedPreferences.getString("password", "");
+                }
+                StringHelper.setSharedString(databaseKey);
                 startActivity(intent);
                 finish();
             } else {
@@ -336,16 +331,18 @@ public class LoginActivity extends AppCompatActivity {
         }
 
         btnCopy.setOnClickListener(v -> {
-            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            cm.setPrimaryClip(ClipData.newPlainText("RecoveryKey", formattedCode));
+            com.gero.newpass.utilities.ClipboardHelper.copyToClipboardWithTimeout(this, "RecoveryKey", formattedCode, 30_000);
             com.gero.newpass.utilities.ToastHelper.showToast(this, R.string.recovery_key_copied, Toast.LENGTH_SHORT);
         });
 
         btnSaved.setOnClickListener(v -> {
             dialog.dismiss();
             // Navigate to main screen after first login / recovery reset
-            String hashedPassword = encryptedSharedPreferences.getString("password", "");
-            StringHelper.setSharedString(hashedPassword);
+            String databaseKey = loginViewModel.getDatabaseKeyLiveData().getValue();
+            if (databaseKey == null || databaseKey.isEmpty()) {
+                databaseKey = encryptedSharedPreferences.getString("password", "");
+            }
+            StringHelper.setSharedString(databaseKey);
             startActivity(new Intent(LoginActivity.this, MainViewActivity.class));
             finish();
         });
@@ -426,4 +423,4 @@ public class LoginActivity extends AppCompatActivity {
     }
 
 
-}
+}

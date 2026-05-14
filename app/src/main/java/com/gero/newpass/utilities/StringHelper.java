@@ -1,14 +1,23 @@
 package com.gero.newpass.utilities;
 
-public class StringHelper {
-    private static String sharedString;
+import java.util.Arrays;
 
-    public static void setSharedString(String value) {
-        sharedString = value;
+public class StringHelper {
+    private static char[] sharedString;
+
+    public static synchronized void setSharedString(String value) {
+        clearSharedString();
+        sharedString = value == null ? null : value.toCharArray();
     }
 
-    public static String getSharedString() {
-        return sharedString;
+    public static synchronized String getSharedString() {
+        return sharedString == null ? null : new String(sharedString);
+    }
+
+    public static synchronized void clearSharedString() {
+        if (sharedString != null) {
+            Arrays.fill(sharedString, '\0');
+            sharedString = null;
+        }
     }
 }
-

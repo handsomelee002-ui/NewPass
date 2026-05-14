@@ -145,7 +145,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             }
             
             // Get max sort order
-            Cursor c = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + (folderId == null ? COLUMN_FOLDER_ID + " IS NULL" : COLUMN_FOLDER_ID + " = " + folderId), null);
+            Cursor c = folderId == null
+                    ? db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " IS NULL", null)
+                    : db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{String.valueOf(folderId)});
             int sortOrder = 0;
             if (c != null && c.moveToFirst() && !c.isNull(0)) {
                 sortOrder = c.getInt(0) + 1;
@@ -247,14 +249,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
         
         // Scope sort order within the parent
-        String sortQuery;
-        if (parentFolderId == null) {
-            sortQuery = "SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL";
-        } else {
-            sortQuery = "SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = " + parentFolderId;
-        }
-        
-        Cursor c = db.rawQuery(sortQuery, null);
+        Cursor c = parentFolderId == null
+                ? db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL", null)
+                : db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ?", new String[]{String.valueOf(parentFolderId)});
         int sortOrder = 0;
         if (c != null && c.moveToFirst() && !c.isNull(0)) {
             sortOrder = c.getInt(0) + 1;
@@ -375,14 +372,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             cvFolder.put(COLUMN_PARENT_FOLDER_ID, parentFolderId);
         }
         
-        String sortQuery;
-        if (parentFolderId == null) {
-            sortQuery = "SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL";
-        } else {
-            sortQuery = "SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = " + parentFolderId;
-        }
-        
-        Cursor cSort = db.rawQuery(sortQuery, null);
+        Cursor cSort = parentFolderId == null
+                ? db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " IS NULL", null)
+                : db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ?", new String[]{String.valueOf(parentFolderId)});
         int sortOrder = 0;
         if (cSort != null && cSort.moveToFirst() && !cSort.isNull(0)) {
             sortOrder = cSort.getInt(0) + 1;
@@ -415,7 +407,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     cvPass.put(COLUMN_LAST_UPDATE, System.currentTimeMillis()); // already encrypted
                     cvPass.put(COLUMN_FOLDER_ID, newFolderId);
                     
-                    Cursor cPassSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = " + newFolderId, null);
+                    Cursor cPassSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{String.valueOf(newFolderId)});
                     int passSortOrder = 0;
                     if (cPassSort != null && cPassSort.moveToFirst() && !cPassSort.isNull(0)) {
                         passSortOrder = cPassSort.getInt(0) + 1;
@@ -457,7 +449,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         cvFolder.put(COLUMN_FOLDER_NAME, folderName);
         cvFolder.put(COLUMN_PARENT_FOLDER_ID, newParentFolderId);
         
-        Cursor cSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = " + newParentFolderId, null);
+        Cursor cSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_FOLDERS + " WHERE " + COLUMN_PARENT_FOLDER_ID + " = ?", new String[]{String.valueOf(newParentFolderId)});
         int sortOrder = 0;
         if (cSort != null && cSort.moveToFirst() && !cSort.isNull(0)) {
             sortOrder = cSort.getInt(0) + 1;
@@ -489,7 +481,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     cvPass.put(COLUMN_LAST_UPDATE, System.currentTimeMillis());
                     cvPass.put(COLUMN_FOLDER_ID, newFolderId);
                     
-                    Cursor cPassSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = " + newFolderId, null);
+                    Cursor cPassSort = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{String.valueOf(newFolderId)});
                     int passSortOrder = 0;
                     if (cPassSort != null && cPassSort.moveToFirst() && !cPassSort.isNull(0)) {
                         passSortOrder = cPassSort.getInt(0) + 1;
@@ -554,7 +546,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 cv.put(COLUMN_FOLDER_ID, targetFolderId);
             }
             
-            Cursor c = db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + (targetFolderId == null ? COLUMN_FOLDER_ID + " IS NULL" : COLUMN_FOLDER_ID + " = " + targetFolderId), null);
+            Cursor c = targetFolderId == null
+                    ? db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " IS NULL", null)
+                    : db.rawQuery("SELECT MAX(" + COLUMN_SORT_ORDER + ") FROM " + TABLE_NAME + " WHERE " + COLUMN_FOLDER_ID + " = ?", new String[]{String.valueOf(targetFolderId)});
             int sortOrder = 0;
             if (c != null && c.moveToFirst() && !c.isNull(0)) {
                 sortOrder = c.getInt(0) + 1;

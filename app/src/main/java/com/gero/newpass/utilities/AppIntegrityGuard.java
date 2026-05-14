@@ -4,8 +4,13 @@ import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
+import android.annotation.SuppressLint;
 import android.os.Build;
 import android.util.Log;
+
+import androidx.core.content.ContextCompat;
+
+import com.gero.newpass.BuildConfig;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -31,8 +36,7 @@ public final class AppIntegrityGuard {
      * <pre>keytool -list -v -keystore your-release.keystore -alias your-alias</pre>
      * and copy the SHA-256 value (upper-case, colon-separated).</p>
      */
-    private static final String OFFICIAL_SIGNATURE_SHA256 =
-            "A4:0D:A8:0A:59:D1:70:CA:A9:50:CF:15:C1:8C:45:4D:47:A3:9B:26:98:9D:8B:64:0E:CD:74:5B:A7:1B:F5:DC";
+    private static final String OFFICIAL_SIGNATURE_SHA256 = BuildConfig.OFFICIAL_SIGNATURE_SHA256;
 
     // Prevent instantiation
     private AppIntegrityGuard() {}
@@ -71,6 +75,7 @@ public final class AppIntegrityGuard {
      *
      * <p>On older API levels this check is a no-op and always passes.</p>
      */
+    @SuppressLint({"WrongConstant", "NewApi"})
     public static SecurityReport checkAdvancedProtection(Context context) {
         if (Build.VERSION.SDK_INT >= 36) {
             try {
@@ -112,7 +117,7 @@ public final class AppIntegrityGuard {
                     java.util.concurrent.Executor.class,
                     java.util.function.Consumer.class);
 
-            java.util.concurrent.Executor mainExecutor = context.getMainExecutor();
+            java.util.concurrent.Executor mainExecutor = ContextCompat.getMainExecutor(context);
             java.util.function.Consumer<Boolean> callback = isEnabled -> {
                 if (com.gero.newpass.BuildConfig.DEBUG) Log.i(TAG, "Advanced Protection toggled — now " +
                         (isEnabled ? "ENABLED" : "DISABLED"));

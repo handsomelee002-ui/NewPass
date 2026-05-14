@@ -136,7 +136,7 @@ public class SettingsAdapter extends ArrayAdapter<SettingData> {
         
         if (!isEnabled) {
             androidx.biometric.BiometricManager biometricManager = androidx.biometric.BiometricManager.from(mContext);
-            int canAuthenticate = biometricManager.canAuthenticate(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG | androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK);
+            int canAuthenticate = biometricManager.canAuthenticate(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG);
             if (canAuthenticate != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
                 com.gero.newpass.utilities.ToastHelper.showToast(mContext, "Your device OS doesn't have compatible biometrics enrolled for third-party apps.", android.widget.Toast.LENGTH_LONG);
                 return;

@@ -486,27 +486,15 @@ public class MainViewFragment extends Fragment {
         builder.setTitle(password.getName())
                .setItems(options, (dialog, which) -> {
                    if (which == 0) {
-                         try {
-                             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) requireActivity().getSystemService(android.content.Context.CLIPBOARD_SERVICE);
-                             android.content.ClipData clip = android.content.ClipData.newPlainText("Copied Password", com.gero.newpass.encryption.EncryptionHelper.decrypt(password.getPassword()));
-                             // Mark as sensitive on API 33+
-                             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                                 clip.getDescription().setExtras(new android.os.PersistableBundle());
-                                 clip.getDescription().getExtras().putBoolean("android.content.extra.IS_SENSITIVE", true);
-                             }
-                             clipboard.setPrimaryClip(clip);
-                             // Auto-clear clipboard after 30 seconds
-                             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                                 try {
-                                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                                         clipboard.clearPrimaryClip();
-                                     } else {
-                                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("", ""));
-                                     }
-                                 } catch (Exception ignored) {}
-                             }, 30_000);
-                             com.gero.newpass.utilities.ToastHelper.showToast(requireContext(), "Action completed", android.widget.Toast.LENGTH_SHORT);
-                         } catch (Exception ignored) {}
+                          try {
+                              com.gero.newpass.utilities.ClipboardHelper.copyToClipboardWithTimeout(
+                                      requireContext(),
+                                      "Copied Password",
+                                      com.gero.newpass.encryption.EncryptionHelper.decrypt(password.getPassword()),
+                                      30_000
+                              );
+                              com.gero.newpass.utilities.ToastHelper.showToast(requireContext(), "Action completed", android.widget.Toast.LENGTH_SHORT);
+                          } catch (Exception ignored) {}
                    } else if (which == 1) {
                         showMoveToFolderDialog(password);
                    } else if (which == 2) {

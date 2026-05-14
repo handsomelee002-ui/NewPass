@@ -32,7 +32,7 @@ public class MainViewActivity extends AppCompatActivity {
     }
 
     private void lockApp() {
-        com.gero.newpass.utilities.StringHelper.setSharedString(""); // Clear master password
+        com.gero.newpass.utilities.StringHelper.clearSharedString();
         android.content.Intent intent = new android.content.Intent(this, LoginActivity.class);
         intent.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);

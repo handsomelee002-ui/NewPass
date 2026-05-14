@@ -326,9 +326,7 @@ public class DialogHelper {
             if (context instanceof com.gero.newpass.view.activities.MainViewActivity) {
                 ((com.gero.newpass.view.activities.MainViewActivity) context).startInactivityTimer();
             }
-            android.content.ClipboardManager cm =
-                    (android.content.ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("RecoveryKey", formattedCode));
+            ClipboardHelper.copyToClipboardWithTimeout(context, "RecoveryKey", formattedCode, 30_000);
             ToastHelper.showToast(context, R.string.recovery_key_copied, Toast.LENGTH_SHORT);
         });
 

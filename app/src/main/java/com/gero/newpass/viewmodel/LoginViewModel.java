@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.crypto.Cipher;
@@ -36,6 +37,7 @@ public class LoginViewModel extends ViewModel {
     private final MutableLiveData<Boolean> loginSuccessLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> loadingLiveData = new MutableLiveData<>(false);
     private final MutableLiveData<String> recoveryCodeLiveData = new MutableLiveData<>();
+    private final MutableLiveData<String> databaseKeyLiveData = new MutableLiveData<>();
     private final ResourceRepository resourceRepository;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -44,6 +46,8 @@ public class LoginViewModel extends ViewModel {
     private int failedAttempts = 0;
     private static final int MAX_ATTEMPTS_BEFORE_DELAY = 3;
     private static final long MAX_DELAY_MS = 30_000; // 30 seconds max
+    private static final String RECOVERY_FAILED_ATTEMPTS = "recovery_failed_attempts";
+    private static final String RECOVERY_LAST_FAILED_AT = "recovery_last_failed_at";
 
 
     public LoginViewModel(ResourceRepository resourceRepository) {
@@ -62,6 +66,9 @@ public class LoginViewModel extends ViewModel {
     }
     public LiveData<String> getRecoveryCodeLiveData() {
         return recoveryCodeLiveData;
+    }
+    public LiveData<String> getDatabaseKeyLiveData() {
+        return databaseKeyLiveData;
     }
 
 
@@ -98,6 +105,7 @@ public class LoginViewModel extends ViewModel {
                         loadingLiveData.setValue(false);
                         // Emit plaintext code FIRST so the activity observer can see pendingCode != null
                         recoveryCodeLiveData.setValue(plainRecoveryCode);
+                        databaseKeyLiveData.setValue(hashedPassword);
                         loginSuccessLiveData.setValue(true);
                         loginMessageLiveData.setValue(resourceRepository.getString(R.string.user_created_successfully));
                     });
@@ -143,6 +151,7 @@ public class LoginViewModel extends ViewModel {
                     loadingLiveData.setValue(false);
                     if (verified) {
                         failedAttempts = 0; // Reset on success
+                        databaseKeyLiveData.setValue(hashedPassword);
                         
                         // Encrypt the hash for biometric login
                         try {
@@ -161,6 +170,7 @@ public class LoginViewModel extends ViewModel {
                         loginMessageLiveData.setValue(resourceRepository.getString(R.string.login_done));
                     } else {
                         failedAttempts++;
+                        databaseKeyLiveData.setValue(null);
                         loginSuccessLiveData.setValue(false);
                         if (failedAttempts >= MAX_ATTEMPTS_BEFORE_DELAY) {
                             long nextDelaySeconds = Math.min((long) Math.pow(2, failedAttempts - MAX_ATTEMPTS_BEFORE_DELAY), MAX_DELAY_MS / 1000);
@@ -214,24 +224,23 @@ public class LoginViewModel extends ViewModel {
                     
                     byte[] decryptedBytes = unlockedCipher.doFinal(Base64.decode(wrappedPassword, Base64.DEFAULT));
                     String originalHashedPassword = new String(decryptedBytes, StandardCharsets.UTF_8);
-                    
-                    // Now safely set it
-                    // The activity observes loginSuccessLiveData and expects to read from sharedpreferences "password", 
-                    // BUT our new behavior decrypts it exactly. Activity reads "password" on success. So this is perfect.
-                    
-                    loginSuccessLiveData.postValue(true);
-                    loginMessageLiveData.postValue(resourceRepository.getString(R.string.login_done));
+
+                    databaseKeyLiveData.setValue(originalHashedPassword);
+                    loginSuccessLiveData.setValue(true);
+                    loginMessageLiveData.setValue(resourceRepository.getString(R.string.login_done));
                 } catch (Exception e) {
-                    loginSuccessLiveData.postValue(false);
-                    loginMessageLiveData.postValue("Failed to decrypt biometric credentials");
+                    databaseKeyLiveData.setValue(null);
+                    loginSuccessLiveData.setValue(false);
+                    loginMessageLiveData.setValue("Failed to decrypt biometric credentials");
                 }
             }
 
             @Override
             public void onAuthenticationFailed() {
                 super.onAuthenticationFailed();
-                loginSuccessLiveData.postValue(false);
-                loginMessageLiveData.postValue(resourceRepository.getString(R.string.access_denied));
+                databaseKeyLiveData.setValue(null);
+                loginSuccessLiveData.setValue(false);
+                loginMessageLiveData.setValue(resourceRepository.getString(R.string.access_denied));
             }
         });
 
@@ -316,10 +325,21 @@ public class LoginViewModel extends ViewModel {
             return;
         }
 
+        int recoveryFailedAttempts = sharedPreferences.getInt(RECOVERY_FAILED_ATTEMPTS, 0);
+        long lastFailedAt = sharedPreferences.getLong(RECOVERY_LAST_FAILED_AT, 0L);
+        if (recoveryFailedAttempts >= MAX_ATTEMPTS_BEFORE_DELAY) {
+            long delayMs = Math.min((long) Math.pow(2, recoveryFailedAttempts - MAX_ATTEMPTS_BEFORE_DELAY) * 1000, MAX_DELAY_MS);
+            long elapsedMs = System.currentTimeMillis() - lastFailedAt;
+            if (elapsedMs < delayMs) {
+                callback.onResult(false, null);
+                return;
+            }
+        }
+
         loadingLiveData.setValue(true);
 
         // Strip dashes from entered code before verifying
-        String stripped = enteredCode.replace("-", "").toUpperCase();
+        String stripped = enteredCode.replace("-", "").toUpperCase(Locale.ROOT);
 
         executor.execute(() -> {
             try {
@@ -333,6 +353,8 @@ public class LoginViewModel extends ViewModel {
                         editor.putString("password", newHashedPassword);
                         // Invalidate old biometric wrap
                         editor.remove("biometric_wrapped_password");
+                        editor.remove(RECOVERY_FAILED_ATTEMPTS);
+                        editor.remove(RECOVERY_LAST_FAILED_AT);
                         editor.apply();
                         
                         // IMPORTANT: Update the SQLCipher database key!
@@ -346,6 +368,11 @@ public class LoginViewModel extends ViewModel {
                     });
                 } else {
                     mainHandler.post(() -> {
+                        int attempts = sharedPreferences.getInt(RECOVERY_FAILED_ATTEMPTS, 0) + 1;
+                        sharedPreferences.edit()
+                                .putInt(RECOVERY_FAILED_ATTEMPTS, attempts)
+                                .putLong(RECOVERY_LAST_FAILED_AT, System.currentTimeMillis())
+                                .apply();
                         loadingLiveData.setValue(false);
                         callback.onResult(false, null);
                     });

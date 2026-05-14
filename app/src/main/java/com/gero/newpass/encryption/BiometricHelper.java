@@ -14,10 +14,11 @@ public class BiometricHelper {
     private static final String KEY_NAME = "newpass_biometric_rsa_key";
     private static final String ANDROID_KEYSTORE = "AndroidKeyStore";
 
-    // RSA/ECB/PKCS1Padding is supported by AndroidKeyStore
+    // Public-key wrapping allows updating the biometric secret after password login
+    // without a prompt; private-key unwrapping still requires biometric authentication.
     private static final String TRANSFORMATION = KeyProperties.KEY_ALGORITHM_RSA + "/" +
             KeyProperties.BLOCK_MODE_ECB + "/" +
-            KeyProperties.ENCRYPTION_PADDING_RSA_PKCS1;
+            KeyProperties.ENCRYPTION_PADDING_RSA_OAEP;
 
     public static void createBiometricKey() throws Exception {
         KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
@@ -32,7 +33,8 @@ public class BiometricHelper {
         KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(
                 KEY_NAME,
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_PKCS1)
+                .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA1)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
                 .setUserAuthenticationRequired(true);
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -12,7 +13,7 @@
         android:text="@string/enter_recovery_key"
         android:fontFamily="@font/jetbrainsmonobold"
         android:textSize="18sp"
-        android:textColor="@color/text_primary"
+        android:textColor="@color/recovery_dialog_text"
         android:gravity="center"
         android:layout_marginBottom="20dp" />
 
@@ -21,7 +22,11 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="@string/recovery_key_hint"
-        android:layout_marginBottom="12dp">
+        android:layout_marginBottom="12dp"
+        android:textColorHint="@color/recovery_dialog_hint"
+        app:hintTextColor="@color/recovery_dialog_hint"
+        app:hintTextAppearance="@style/RecoveryDialogHintText"
+        app:boxStrokeColor="@color/recovery_dialog_line">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/input_recovery_key"
@@ -29,7 +34,10 @@
             android:layout_height="wrap_content"
             android:fontFamily="@font/jetbrainsmonoregular"
             android:inputType="textCapCharacters"
-            android:maxLines="1" />
+            android:maxLines="1"
+            android:textColor="@color/recovery_dialog_text"
+            android:textColorHint="@color/recovery_dialog_hint"
+            android:backgroundTint="@color/recovery_dialog_line" />
 
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -38,13 +46,20 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="@string/enter_the_new_password"
-        android:layout_marginBottom="12dp">
+        android:layout_marginBottom="12dp"
+        android:textColorHint="@color/recovery_dialog_hint"
+        app:hintTextColor="@color/recovery_dialog_hint"
+        app:hintTextAppearance="@style/RecoveryDialogHintText"
+        app:boxStrokeColor="@color/recovery_dialog_line">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/input_new_password"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textPassword" />
+            android:inputType="textPassword"
+            android:textColor="@color/recovery_dialog_text"
+            android:textColorHint="@color/recovery_dialog_hint"
+            android:backgroundTint="@color/recovery_dialog_line" />
 
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -53,13 +68,20 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="@string/reenter_the_new_password"
-        android:layout_marginBottom="20dp">
+        android:layout_marginBottom="20dp"
+        android:textColorHint="@color/recovery_dialog_hint"
+        app:hintTextColor="@color/recovery_dialog_hint"
+        app:hintTextAppearance="@style/RecoveryDialogHintText"
+        app:boxStrokeColor="@color/recovery_dialog_line">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/input_confirm_password"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textPassword" />
+            android:inputType="textPassword"
+            android:textColor="@color/recovery_dialog_text"
+            android:textColorHint="@color/recovery_dialog_hint"
+            android:backgroundTint="@color/recovery_dialog_line" />
 
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -84,7 +106,7 @@
             android:layout_marginStart="12dp"
             android:fontFamily="@font/jetbrainsmonobold"
             android:text="@string/verifying"
-            android:textColor="@color/text_primary"
+            android:textColor="@color/recovery_dialog_text"
             android:textSize="12sp" />
 
     </LinearLayout>
@@ -128,7 +150,7 @@
             android:fontFamily="@font/jetbrainsmonobold"
             android:textSize="12sp"
             android:backgroundTint="@color/background_secondary"
-            android:textColor="@color/text_primary"
+            android:textColor="@color/recovery_dialog_text"
             android:layout_marginEnd="8dp" />
 
         <Button

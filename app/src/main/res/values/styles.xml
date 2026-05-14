@@ -4,4 +4,9 @@
         <item name="colorControlActivated">@color/colorOn</item>
         <item name="colorSwitchThumbNormal">@color/colorOff</item>
     </style>
+
+    <style name="RecoveryDialogHintText" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textColor">@color/recovery_dialog_hint</item>
+        <item name="android:fontFamily">@font/jetbrainsmonoregular</item>
+    </style>
 </resources>

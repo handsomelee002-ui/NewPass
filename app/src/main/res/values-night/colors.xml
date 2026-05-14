@@ -17,6 +17,9 @@
     <color name="text_primary">#CAC4D0</color>
     <color name="text_secondary">#494949</color>
     <color name="accent">#D0BCFF</color>
+    <color name="recovery_dialog_text">#F7F2FA</color>
+    <color name="recovery_dialog_hint">#CAC4D0</color>
+    <color name="recovery_dialog_line">#938F99</color>
 
 <!--    For toggle button-->
     <color name="colorOn">#D0BCFF</color>

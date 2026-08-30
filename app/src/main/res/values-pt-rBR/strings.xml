@@ -29,7 +29,6 @@
     <string name="settings_settings">Configurações</string>
     <string name="settings_about">[olhe e sentir]</string>
     <string name="settings_other">[outro]</string>
-    <string name="settings_share_newpass">Compartilher NewPass</string>
     <string name="settings_contact_me">Contate-me</string>
     <string name="settings_change_language">Mudar idioma</string>
     <string name="settings_dark_theme">Tema escuro</string>
@@ -52,7 +51,6 @@
     <string name="dbhelper_failed_to_delete">Falha ao excluir.</string>
     <string name="dbhelper_successfully_deleted">Excluído com sucesso.</string>
     <string name="generate_text_copied_to_clipboard">Texto copiado para a área de transferência</string>
-    <string name="settings_share_text">Desbloqueie um mundo de segurança com NewPass – seu melhor guardião de senhas. Explore agora: https://github.com/6eero/NewPass/releases</string>
     <string name="text_copied_to_clipboard">Texto copiado para a área de transferência</string>
     <string name="languagedialog_select_your_choice">Selecione seu idioma</string>
     <string name="cancel">Voltar</string>

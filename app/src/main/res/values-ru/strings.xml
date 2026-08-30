@@ -29,7 +29,6 @@
     <string name="settings_settings">Настройки</string>
     <string name="settings_about">[внешний вид]</string>
     <string name="settings_other">[другое]</string>
-    <string name="settings_share_newpass">Поделиться NewPass</string>
     <string name="settings_contact_me">Связаться со мной</string>
     <string name="settings_change_language">Сменить язык</string>
     <string name="settings_dark_theme">Тёмная тема</string>
@@ -52,7 +51,6 @@
     <string name="dbhelper_failed_to_delete">Не удалось удалить.</string>
     <string name="dbhelper_successfully_deleted">Удалено успешно.</string>
     <string name="generate_text_copied_to_clipboard">Текст  скопирован в буфер обмена</string>
-    <string name="settings_share_text">Unlock a world of security with NewPass – your ultimate password guardian. Explore it now: https://github.com/6eero/NewPass/releases</string>
     <string name="text_copied_to_clipboard">Текст  скопирован в буфер обмена</string>
     <string name="languagedialog_select_your_choice">Выберите язык</string>
     <string name="cancel">Назад</string>

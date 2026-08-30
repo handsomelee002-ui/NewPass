@@ -32,7 +32,6 @@
     <string name="settings_settings">设置</string>
     <string name="settings_about">[外观与感觉]</string>
     <string name="settings_other">[其他]</string>
-    <string name="settings_share_newpass">分享 NewPass</string>
     <string name="settings_contact_me">联系我</string>
     <string name="settings_change_language">更改语言</string>
     <string name="settings_dark_theme">暗色主题</string>
@@ -55,7 +54,6 @@
     <string name="dbhelper_failed_to_delete">删除失败。</string>
     <string name="dbhelper_successfully_deleted">删除成功。</string>
     <string name="generate_text_copied_to_clipboard">文本已复制到剪贴板</string>
-    <string name="settings_share_text">使用 NewPass 解锁安全世界 - 您的终极密码保护者。立即探索：https://github.com/6eero/NewPass/releases</string>
     <string name="text_copied_to_clipboard">文本已复制到剪贴板</string>
     <string name="languagedialog_select_your_choice">选择您的语言</string>
     <string name="cancel">返回</string>

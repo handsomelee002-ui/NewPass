@@ -30,7 +30,6 @@
     <string name="settings_settings">Settings</string>
     <string name="settings_about">[look &amp; feel]</string>
     <string name="settings_other">[other]</string>
-    <string name="settings_share_newpass">Share NewPass</string>
     <string name="settings_contact_me">Contact Me</string>
     <string name="settings_change_language">Change language</string>
     <string name="settings_dark_theme">Dark Theme</string>
@@ -53,7 +52,6 @@
     <string name="dbhelper_failed_to_delete">Failed to Delete.</string>
     <string name="dbhelper_successfully_deleted">Successfully Deleted.</string>
     <string name="generate_text_copied_to_clipboard">Text copied to clipboard</string>
-    <string name="settings_share_text">Unlock a world of security with NewPass – your ultimate password guardian. Explore it now: https://github.com/6eero/NewPass/releases</string>
     <string name="text_copied_to_clipboard">Text copied to clipboard</string>
     <string name="languagedialog_select_your_choice">Select your language</string>
     <string name="cancel">Back</string>

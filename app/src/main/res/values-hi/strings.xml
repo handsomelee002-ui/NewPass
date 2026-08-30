@@ -30,7 +30,6 @@
     <string name="settings_settings">सेटिंग्स</string>
     <string name="settings_about">[दिखावा और अनुभव]</string>
     <string name="settings_other">[अन्य]</string>
-    <string name="settings_share_newpass">न्यूपास को शेयर करें</string>
     <string name="settings_contact_me">मुझसे संपर्क करें</string>
     <string name="settings_change_language">भाषा बदलें</string>
     <string name="settings_dark_theme">डार्क थीम</string>
@@ -53,7 +52,6 @@
     <string name="dbhelper_failed_to_delete">हटाने में विफल।</string>
     <string name="dbhelper_successfully_deleted">सफलतापूर्वक हटाया गया।</string>
     <string name="generate_text_copied_to_clipboard">पाठ क्लिपबोर्ड पर कॉपी किया गया</string>
-    <string name="settings_share_text">न्यूपास के साथ सुरक्षा का एक दुनिया को अनलॉक करें - आपका अंतिम पासवर्ड गार्डियन। अब इसे अन्वेषित करें: https://github.com/6eero/NewPass/releases</string>
     <string name="text_copied_to_clipboard">पाठ क्लिपबोर्ड पर कॉपी किया गया</string>
     <string name="languagedialog_select_your_choice">अपनी भाषा का चयन करें</string>
     <string name="cancel">पीछे</string>

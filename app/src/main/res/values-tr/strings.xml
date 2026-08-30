@@ -29,7 +29,6 @@
     <string name="settings_settings">Ayarlar</string>
     <string name="settings_about">[Bak &amp; hisset]</string>
     <string name="settings_other">[Diğer]</string>
-    <string name="settings_share_newpass">NewPass\'i Paylaş</string>
     <string name="settings_contact_me">İletişime Geç</string>
     <string name="settings_change_language">Dili Değiştir</string>
     <string name="settings_dark_theme">Koyu Tema</string>
@@ -52,7 +51,6 @@
     <string name="dbhelper_failed_to_delete">Silme İşlemi Başarısız.</string>
     <string name="dbhelper_successfully_deleted">Başarıyla Silindi.</string>
     <string name="generate_text_copied_to_clipboard">Metin panoya kopyalandı</string>
-    <string name="settings_share_text">Nihai şifre koruyucunuz NewPass ile bir güvenlik dünyasının kilidini açın. Şimdi keşfedin: https://github.com/6eero/NewPass/releases</string>
     <string name="text_copied_to_clipboard">Metin panoya kopyalandı</string>
     <string name="languagedialog_select_your_choice">Dilinizi seçin</string>
     <string name="cancel">Geri dön</string>
